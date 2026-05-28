@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 type Phase = 'form' | 'chat' | 'summary' | 'generating';
@@ -42,11 +43,46 @@ export default function OnboardingPage() {
     ville_jeunesse: '',
     pays_jeunesse: 'France',
   });
+  // Synchronous lock — prevents double-send from rapid Enter+click or StrictMode
+  const sendingRef = useRef(false);
+  // Session readiness — waits for Supabase session to be established after signup
+  const [sessionReady, setSessionReady] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // ── Wait for session to be established ───────────────────────────────────────
+  // After email confirmation, exchangeCodeForSession runs in /auth/callback and
+  // sets the session cookie.  But Supabase's getUser() (used by requireAuth)
+  // makes a network round-trip to validate the token; during the very brief
+  // post-signup propagation window it can return 401.  We poll the client-side
+  // session here (no network call needed — just reads the cookie) and only mark
+  // the UI as ready once the session is confirmed.
+  useEffect(() => {
+    const supabase = createClientComponentClient();
+    let attempts = 0;
+    const MAX_ATTEMPTS = 10; // up to 5 s
+
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('[onboarding] Session confirmed:', session.user.id.slice(0, 8) + '…');
+        setSessionReady(true);
+        return;
+      }
+      attempts++;
+      if (attempts < MAX_ATTEMPTS) {
+        setTimeout(checkSession, 500);
+      } else {
+        console.warn('[onboarding] No session after polling — redirecting to login');
+        router.replace('/login');
+      }
+    }
+
+    checkSession();
+  }, [router]);
 
   function handleFormNext() {
     if (!formData.ville_jeunesse || !formData.annee_naissance) {
@@ -70,7 +106,14 @@ export default function OnboardingPage() {
   }
 
   async function sendMessage() {
+    // ── Duplicate-send guard (synchronous ref — immune to React state batching) ──
+    if (sendingRef.current) {
+      console.warn('[onboarding] sendMessage called while already sending — ignored');
+      return;
+    }
     if (!input.trim() || isTyping) return;
+
+    sendingRef.current = true;
     const userMsg = input.trim();
     setInput('');
     const newHistory: Message[] = [...messages, { role: 'user', content: userMsg }];
@@ -78,39 +121,54 @@ export default function OnboardingPage() {
     setIsTyping(true);
 
     try {
-      console.log('[onboarding] → sending message, history length:', newHistory.length - 1);
+      console.log('[onboarding] → sending message, history length:', newHistory.length - 1, 'sessionReady:', sessionReady);
 
-      const res = await fetch('/api/onboarding/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, history: newHistory.slice(0, -1), langue: 'fr' }),
-      });
-
-      // Always parse body — needed for error details too
+      // ── Call API with 401-retry (handles post-signup session propagation lag) ──
+      let res: Response | null = null;
       let data: Record<string, unknown> = {};
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        console.error('[onboarding] Failed to parse API response JSON:', parseErr);
-        toast({ title: 'Erreur', description: 'Réponse invalide du serveur. Réessayez.', variant: 'destructive' });
-        setMessages(newHistory); // keep chat without an empty bubble
-        return;
+      const PAYLOAD = JSON.stringify({ message: userMsg, history: newHistory.slice(0, -1), langue: 'fr' });
+      const MAX_AUTH_RETRIES = 3;
+
+      for (let attempt = 1; attempt <= MAX_AUTH_RETRIES; attempt++) {
+        try {
+          res = await fetch('/api/onboarding/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: PAYLOAD,
+          });
+          try { data = await res.json(); } catch { data = {}; }
+
+          console.log(`[onboarding] ← attempt ${attempt}:`, {
+            status: res.status,
+            ok: res.ok,
+            isComplete: data.isComplete,
+            responseLength: typeof data.response === 'string' ? data.response.length : 'N/A',
+            error: data.error ?? null,
+          });
+
+          // 401 = session not yet propagated → wait and retry
+          if (res.status === 401 && attempt < MAX_AUTH_RETRIES) {
+            const delay = attempt * 1500; // 1.5s, 3s
+            console.warn(`[onboarding] 401 on attempt ${attempt}, retrying in ${delay}ms…`);
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+          break; // success or non-retryable error
+        } catch (fetchErr) {
+          console.error(`[onboarding] fetch error on attempt ${attempt}:`, fetchErr);
+          if (attempt === MAX_AUTH_RETRIES) throw fetchErr;
+          await new Promise((r) => setTimeout(r, 1000));
+        }
       }
 
-      console.log('[onboarding] ← API response:', {
-        status: res.status,
-        ok: res.ok,
-        isComplete: data.isComplete,
-        responseLength: typeof data.response === 'string' ? data.response.length : 'N/A',
-        error: data.error ?? null,
-      });
+      if (!res) throw new Error('No response after retries');
 
       // Non-2xx: surface the real error, never render an empty bubble
       if (!res.ok) {
         const errMsg = (data.error as string) ?? `Erreur serveur (${res.status})`;
-        console.error('[onboarding] API returned error:', res.status, data);
+        console.error('[onboarding] API error after retries:', res.status, data);
         toast({ title: 'Erreur assistant', description: errMsg, variant: 'destructive' });
-        setMessages(newHistory); // keep chat without an empty bubble
+        setMessages(newHistory);
         return;
       }
 
@@ -126,7 +184,7 @@ export default function OnboardingPage() {
       if (!responseText) {
         console.error('[onboarding] Empty or missing response field in:', data);
         toast({ title: 'Erreur', description: "Réponse vide reçue. Réessayez.", variant: 'destructive' });
-        setMessages(newHistory); // no empty bubble
+        setMessages(newHistory);
         return;
       }
 
@@ -134,9 +192,10 @@ export default function OnboardingPage() {
     } catch (err) {
       console.error('[onboarding] Network error:', err);
       toast({ title: 'Erreur réseau', description: "Vérifiez votre connexion et réessayez.", variant: 'destructive' });
-      setMessages(newHistory); // no empty bubble
+      setMessages(newHistory);
     } finally {
       setIsTyping(false);
+      sendingRef.current = false;
     }
   }
 
@@ -185,6 +244,18 @@ export default function OnboardingPage() {
   }
 
   const progressValue = phase === 'form' ? 20 : phase === 'chat' ? 60 : phase === 'summary' ? 85 : 100;
+
+  // Show a fullscreen loader while waiting for session — prevents API calls before auth is ready
+  if (!sessionReady) {
+    return (
+      <div className="min-h-screen bg-[#F7F5F0] flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-[#4A6FA5] mx-auto" />
+          <p className="text-muted-foreground text-sm">Chargement de votre session…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] flex flex-col">
@@ -289,7 +360,12 @@ export default function OnboardingPage() {
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.repeat) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
                   placeholder="Votre réponse..."
                   disabled={isTyping}
                 />
