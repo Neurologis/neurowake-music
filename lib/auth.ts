@@ -16,18 +16,22 @@ export async function requireAuth(req: NextRequest): Promise<
   | { userId: null; error: NextResponse }
 > {
   const supabase = createServerClient();
+  // Use getUser() (server-validated) instead of getSession() (reads JWT locally).
+  // This prevents FK violations where a stale cookie returns a user_id that
+  // doesn't yet exist in auth.users after email confirmation.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (authError || !user) {
     return {
       userId: null,
       error: apiError('Authentication required', 'AUTH_REQUIRED', 401),
     };
   }
 
-  return { userId: session.user.id, error: null };
+  return { userId: user.id, error: null };
 }
 
 export function checkRateLimit(

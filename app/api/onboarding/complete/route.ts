@@ -89,7 +89,18 @@ export async function POST(req: NextRequest) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error: saveError } = await supabase.from('profils').upsert(upsertPayload);
+  // Retry up to 3 times for FK violations (code 23503).
+  // These happen when Supabase Auth hasn't fully propagated the new user
+  // into auth.users yet right after email confirmation.
+  let saveError: { code?: string; message: string } | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = await supabase.from('profils').upsert(upsertPayload);
+    saveError = result.error as typeof saveError;
+    if (!saveError) break;
+    if (saveError.code !== '23503' || attempt === 3) break;
+    console.warn(`[onboarding/complete] FK violation on attempt ${attempt}, retrying in 1 s…`);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
 
   if (saveError) {
     console.error('[onboarding/complete] DB upsert error:', saveError);
