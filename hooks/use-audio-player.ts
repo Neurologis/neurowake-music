@@ -23,6 +23,7 @@ interface PlayerState {
   gammaGain: number;
   gammaMode: GammaMode;
   playlistType: PlaylistType;
+  customPlaylistName?: string;
 }
 
 export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaMode = 'binaural') {
@@ -49,6 +50,8 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
   const offsetRef = useRef<number>(0);
   const currentBufferRef = useRef<AudioBuffer | null>(null);
   const repetitionCountRef = useRef<number>(0);
+  // Ref-based currentIndex avoids stale closures in source.onended callbacks
+  const currentIndexRef = useRef<number>(0);
 
   const getAudioContext = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
@@ -171,9 +174,11 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
         playTrack(track, 0);
       } else {
         repetitionCountRef.current = 0;
-        // Advance to next track
+        // Advance to next track — use ref to avoid stale closure on currentIndex
         setTracks((currentTracks) => {
-          const nextIndex = (state.currentIndex + 1) % currentTracks.length;
+          const nextIndex = (currentIndexRef.current + 1) % currentTracks.length;
+          currentIndexRef.current = nextIndex;
+          setState((s) => ({ ...s, currentIndex: nextIndex }));
           if (currentTracks[nextIndex]) {
             playTrack(currentTracks[nextIndex], 0);
           }
@@ -186,16 +191,30 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     if (state.gammaEnabled) {
       startGamma(ctx, state.gammaMode, state.gammaGain);
     }
-  }, [getAudioContext, stopCurrentPlayback, startGamma, state.gammaEnabled, state.gammaMode, state.gammaGain, state.currentIndex]);
+  }, [getAudioContext, stopCurrentPlayback, startGamma, state.gammaEnabled, state.gammaMode, state.gammaGain]);
 
   const loadPlaylist = useCallback(async (type: PlaylistType) => {
     const res = await fetch(`/api/playlist/${type}`);
     if (!res.ok) return;
     const { titres } = await res.json();
+    currentIndexRef.current = 0;
     setTracks(titres ?? []);
     setState((s) => ({ ...s, playlistType: type, currentIndex: 0 }));
     return titres as Track[];
   }, []);
+
+  /**
+   * Play a pre-loaded track list (user-created playlists).
+   * Bypasses the API-based loadPlaylist and plays the given tracks directly.
+   */
+  const playTrackList = useCallback(async (newTracks: Track[], playlistName?: string) => {
+    if (!newTracks.length) return;
+    currentIndexRef.current = 0;
+    setTracks(newTracks);
+    setState((s) => ({ ...s, currentIndex: 0, customPlaylistName: playlistName }));
+    repetitionCountRef.current = 0;
+    await playTrack(newTracks[0], 0);
+  }, [playTrack]);
 
   const play = useCallback(async (type?: PlaylistType) => {
     const playlistType = type ?? state.playlistType;
@@ -270,6 +289,7 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     resume,
     togglePlay,
     loadPlaylist,
+    playTrackList,
     setGammaEnabled,
     setGammaGain,
     setGammaMode,

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
 import { createServerClient, createAdminClient } from '@/lib/supabase/server';
-import { searchTracksByPeriod } from '@/lib/services/musicbrainz';
-import { filterMusicBrainzResults } from '@/lib/services/anthropic';
+import { generateMusicDiscovery } from '@/lib/services/anthropic';
 import { z } from 'zod';
 import type { Json } from '@/lib/supabase/types';
 
@@ -117,49 +116,38 @@ export async function POST(req: NextRequest) {
     trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
   });
 
-  // Rechercher des titres MusicBrainz
+  // Générer les recommandations musicales via IA (Claude)
   let titresRecommandes: unknown[] = [];
   try {
-    const titresBruts = await searchTracksByPeriod({
-      annee_debut: profil.bump_annee_debut,
-      annee_fin: profil.bump_annee_fin,
-      pays: profil.pays_jeunesse,
-      genres: profil.genres_preferes,
-      limit: 50,
+    const titresIA = await generateMusicDiscovery({
+      annee_naissance: profil.annee_naissance,
+      bump_annee_debut: profil.bump_annee_debut,
+      bump_annee_fin: profil.bump_annee_fin,
+      genres_preferes: profil.genres_preferes,
+      passions: profil.passions,
+      pays_jeunesse: profil.pays_jeunesse,
+      chanson_madeleine: profil.chanson_madeleine,
+      limit: 30,
     });
 
-    const titresFiltres = await filterMusicBrainzResults(
-      titresBruts,
-      profil,
-      profil.langue
-    );
+    const inserts = titresIA.map((t) => ({
+      user_id: userId,
+      titre: t.titre,
+      artiste: t.artiste,
+      annee: t.annee,
+      pochette_url: null as string | null,
+      musicbrainz_id: null as string | null,
+      phase_recommandee: t.phase_recommandee,
+      statut: 'propose' as const,
+    }));
 
-    // Sauvegarder les recommandations
-    interface TitreCandidat {
-      titre?: string;
-      artiste?: string;
-      annee?: number | null;
-      pochette_url?: string | null;
-      musicbrainz_id?: string | null;
+    if (inserts.length > 0) {
+      await admin.from('titres_recommandes').insert(inserts);
+      titresRecommandes = inserts;
     }
-    const inserts = titresFiltres.slice(0, 20).map((t: object) => {
-      const track = t as TitreCandidat;
-      return {
-        user_id: userId,
-        titre: track.titre ?? '',
-        artiste: track.artiste ?? '',
-        annee: track.annee ?? null,
-        pochette_url: track.pochette_url ?? null,
-        musicbrainz_id: track.musicbrainz_id ?? null,
-        statut: 'propose' as const,
-      };
-    });
-
-    await admin.from('titres_recommandes').insert(inserts);
-    titresRecommandes = inserts;
   } catch (err) {
-    console.error('[onboarding/complete] MusicBrainz error:', err);
-    // Non-fatal: l'onboarding est quand même terminé
+    console.error('[onboarding/complete] AI discovery error:', err);
+    // Non-fatal: l'onboarding est quand même terminé sans recommandations
   }
 
   return NextResponse.json({ success: true, titresRecommandes });

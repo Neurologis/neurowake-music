@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { Check, X, HelpCircle, Upload, ShoppingCart, Search } from 'lucide-react';
+import { Check, X, HelpCircle, Upload, ShoppingCart, Search, ChevronRight, Loader2 } from 'lucide-react';
+
+type PhaseRecommandee = 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
 
 interface Titre {
   id: string;
@@ -17,42 +19,98 @@ interface Titre {
   pochette_url: string | null;
   statut: 'propose' | 'valide' | 'refuse' | 'incertain' | 'importe';
   musicbrainz_id?: string | null;
+  phase_recommandee?: PhaseRecommandee | null;
   itunes_url?: string;
   amazon_url?: string;
 }
 
+const PAGE_SIZE = 10;
+
+const PHASE_CONFIG: Record<PhaseRecommandee, { label: string; className: string }> = {
+  matin:      { label: '🌅 Matin',      className: 'bg-amber-100 text-amber-800 border-amber-200' },
+  soins:      { label: '🕊️ Soins',      className: 'bg-sky-100 text-sky-800 border-sky-200' },
+  repas:      { label: '🍽️ Repas',      className: 'bg-green-100 text-green-800 border-green-200' },
+  'apres-midi':{ label: '🌤️ Après-midi', className: 'bg-purple-100 text-purple-800 border-purple-200' },
+  coucher:    { label: '🌙 Coucher',    className: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+};
+
 export default function DecouvertePage() {
   const router = useRouter();
-  const [titres, setTitres] = useState<Titre[]>([]);
+
+  // All titles fetched from API
+  const [allTitres, setAllTitres] = useState<Titre[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Pagination
+  const [page, setPage] = useState(0);
+
+  // Search
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Titre[]>([]);
   const [searching, setSearching] = useState(false);
+
+  // Upload
   const [uploading, setUploading] = useState<string | null>(null);
 
-  useEffect(() => { loadTitres(); }, []);
+  useEffect(() => {
+    loadTitres();
+  }, []);
 
   async function loadTitres() {
     const res = await fetch('/api/decouverte/titres');
     if (res.ok) {
       const { titres: data } = await res.json();
-      setTitres(data ?? []);
+      setAllTitres(data ?? []);
     }
     setLoading(false);
   }
 
+  // Titles shown on the current page
+  const currentTitres = allTitres.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const hasNextPageLocal = (page + 1) * PAGE_SIZE < allTitres.length;
+
+  const nbValides = allTitres.filter((t) => ['valide', 'importe'].includes(t.statut)).length;
+  const nbImportes = allTitres.filter((t) => t.statut === 'importe').length;
+
   async function valider(id: string, clicked: 'valide' | 'refuse' | 'incertain') {
-    // Toggle: re-clicking the already-selected choice resets to 'propose' (deselect).
-    // Clicking a different choice switches to it.
-    const current = titres.find(t => t.id === id);
+    const current = allTitres.find((t) => t.id === id);
     const newStatut: Titre['statut'] = current?.statut === clicked ? 'propose' : clicked;
 
-    setTitres(t => t.map(x => x.id === id ? { ...x, statut: newStatut } : x));
+    setAllTitres((t) => t.map((x) => (x.id === id ? { ...x, statut: newStatut } : x)));
     await fetch('/api/decouverte/valider', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ titre_id: id, statut: newStatut }),
     });
+  }
+
+  async function handleNext() {
+    if (hasNextPageLocal) {
+      setPage((p) => p + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Exhausted local list — ask the AI for more
+    setLoadingMore(true);
+    try {
+      const res = await fetch('/api/decouverte/plus', { method: 'POST' });
+      if (res.ok) {
+        const { titres: more } = await res.json();
+        if (more && more.length > 0) {
+          setAllTitres((prev) => [...prev, ...more]);
+          setPage((p) => p + 1);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          toast({ title: 'Vous avez tout exploré !', description: 'Aucun nouveau titre à suggérer pour ce profil.' });
+        }
+      }
+    } catch {
+      toast({ title: 'Erreur réseau', description: 'Impossible de charger plus de titres.', variant: 'destructive' });
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   const searchDebounce = useCallback(async (q: string) => {
@@ -88,25 +146,22 @@ export default function DecouvertePage() {
       const res = await fetch('/api/audio/upload', { method: 'POST', body: fd });
       if (res.ok) {
         await valider(titre.id, 'valide');
-        setTitres(t => t.map(x => x.id === titre.id ? { ...x, statut: 'importe' } : x));
+        setAllTitres((t) => t.map((x) => (x.id === titre.id ? { ...x, statut: 'importe' } : x)));
         toast({ title: 'Titre importé !', description: `${titre.titre} ajouté à votre bibliothèque` });
       } else {
-        toast({ title: 'Erreur', description: 'Impossible d\'importer le fichier', variant: 'destructive' });
+        toast({ title: 'Erreur', description: "Impossible d'importer le fichier", variant: 'destructive' });
       }
       setUploading(null);
     };
     input.click();
   }
 
-  const nbImportes = titres.filter(t => t.statut === 'importe').length;
-  const nbValides = titres.filter(t => ['valide', 'importe'].includes(t.statut)).length;
-
   function TitreCard({ titre }: { titre: Titre }) {
-    const isValide = titre.statut === 'valide';
     const isImporte = titre.statut === 'importe';
+    const phase = titre.phase_recommandee ? PHASE_CONFIG[titre.phase_recommandee] : null;
 
     return (
-      <Card className={`${isImporte ? 'border-[#7BA05B] bg-green-50' : ''}`}>
+      <Card className={isImporte ? 'border-[#7BA05B] bg-green-50' : ''}>
         <CardContent className="p-4">
           <div className="flex gap-4">
             {titre.pochette_url ? (
@@ -115,22 +170,28 @@ export default function DecouvertePage() {
               <div className="w-16 h-16 bg-[#EDEAE3] rounded-lg flex items-center justify-center flex-shrink-0 text-2xl">🎵</div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="font-semibold truncate">{titre.titre}</div>
-              <div className="text-sm text-muted-foreground">{titre.artiste}{titre.annee ? ` (${titre.annee})` : ''}</div>
+              <div className="flex items-start gap-2 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold truncate">{titre.titre}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {titre.artiste}{titre.annee ? ` (${titre.annee})` : ''}
+                  </div>
+                </div>
+                {phase && (
+                  <Badge variant="outline" className={`text-xs shrink-0 ${phase.className}`}>
+                    {phase.label}
+                  </Badge>
+                )}
+              </div>
 
-              {/* Boutons validation — toujours visibles sauf si importé.
-                  Cliquer sur le bouton déjà sélectionné le désélectionne (reset → propose).
-                  Cliquer sur un autre bouton change le choix. */}
               {!isImporte && (
                 <div className="flex gap-2 mt-3 flex-wrap">
                   <Button
                     size="sm"
                     variant={titre.statut === 'valide' ? 'default' : 'outline'}
-                    className={
-                      titre.statut === 'valide'
-                        ? 'bg-[#7BA05B] hover:bg-[#7BA05B]/80 text-white border-[#7BA05B]'
-                        : 'border-[#7BA05B] text-[#7BA05B] hover:bg-green-50'
-                    }
+                    className={titre.statut === 'valide'
+                      ? 'bg-[#7BA05B] hover:bg-[#7BA05B]/80 text-white border-[#7BA05B]'
+                      : 'border-[#7BA05B] text-[#7BA05B] hover:bg-green-50'}
                     onClick={() => valider(titre.id, 'valide')}
                   >
                     <Check className="h-4 w-4 mr-1" /> Il aimait
@@ -138,11 +199,9 @@ export default function DecouvertePage() {
                   <Button
                     size="sm"
                     variant={titre.statut === 'refuse' ? 'default' : 'outline'}
-                    className={
-                      titre.statut === 'refuse'
-                        ? 'bg-destructive hover:bg-destructive/80 text-white border-destructive'
-                        : 'border-destructive text-destructive hover:bg-red-50'
-                    }
+                    className={titre.statut === 'refuse'
+                      ? 'bg-destructive hover:bg-destructive/80 text-white border-destructive'
+                      : 'border-destructive text-destructive hover:bg-red-50'}
                     onClick={() => valider(titre.id, 'refuse')}
                   >
                     <X className="h-4 w-4 mr-1" /> Pas vraiment
@@ -150,11 +209,7 @@ export default function DecouvertePage() {
                   <Button
                     size="sm"
                     variant={titre.statut === 'incertain' ? 'default' : 'outline'}
-                    className={
-                      titre.statut === 'incertain'
-                        ? 'bg-gray-400 hover:bg-gray-400/80 text-white'
-                        : ''
-                    }
+                    className={titre.statut === 'incertain' ? 'bg-gray-400 hover:bg-gray-400/80 text-white' : ''}
                     onClick={() => valider(titre.id, 'incertain')}
                   >
                     <HelpCircle className="h-4 w-4 mr-1" /> Je ne sais pas
@@ -162,8 +217,7 @@ export default function DecouvertePage() {
                 </div>
               )}
 
-              {/* Liens d'achat / import pour les validés */}
-              {(isValide || titre.statut === 'incertain') && !isImporte && (
+              {(titre.statut === 'valide' || titre.statut === 'incertain') && !isImporte && (
                 <div className="flex flex-col gap-2 mt-3">
                   <Button
                     size="sm"
@@ -175,29 +229,25 @@ export default function DecouvertePage() {
                     {uploading === titre.id ? 'Import...' : "J'ai ce fichier → Importer"}
                   </Button>
                   {titre.itunes_url && (
-                    <div>
-                      <a href={titre.itunes_url} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="w-full justify-start">
-                          <ShoppingCart className="h-4 w-4 mr-2" /> Acheter iTunes 1,29€
-                        </Button>
-                      </a>
-                      <p className="text-xs text-muted-foreground mt-1">Achat direct sur iTunes — indépendant de votre abonnement NeuroWake</p>
-                    </div>
+                    <a href={titre.itunes_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="w-full justify-start">
+                        <ShoppingCart className="h-4 w-4 mr-2" /> Acheter iTunes 1,29€
+                      </Button>
+                    </a>
                   )}
                   {titre.amazon_url && (
-                    <div>
-                      <a href={titre.amazon_url} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="w-full justify-start">
-                          <ShoppingCart className="h-4 w-4 mr-2" /> Acheter Amazon 0,99€
-                        </Button>
-                      </a>
-                      <p className="text-xs text-muted-foreground mt-1">Achat direct sur Amazon — indépendant de votre abonnement NeuroWake</p>
-                    </div>
+                    <a href={titre.amazon_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline" className="w-full justify-start">
+                        <ShoppingCart className="h-4 w-4 mr-2" /> Acheter Amazon 0,99€
+                      </Button>
+                    </a>
                   )}
                 </div>
               )}
 
-              {isImporte && <Badge variant="outline" className="mt-2 border-[#7BA05B] text-[#7BA05B]">✓ Importé</Badge>}
+              {isImporte && (
+                <Badge variant="outline" className="mt-2 border-[#7BA05B] text-[#7BA05B]">✓ Importé</Badge>
+              )}
             </div>
           </div>
         </CardContent>
@@ -208,14 +258,26 @@ export default function DecouvertePage() {
   return (
     <div className="min-h-screen bg-[#F7F5F0] p-4">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6">
+
+        {/* Header */}
+        <div className="mb-4">
           <h1 className="text-2xl font-bold text-[#2C2C2A]">La musique de votre proche</h1>
           <p className="text-muted-foreground mt-1">
-            Voici les titres qui lui correspondent probablement. Validez ceux qu&apos;il aimait, ignorez les autres.
+            Voici les titres qui lui correspondent probablement. Validez ceux qu&apos;il aimait.
           </p>
-          {nbValides > 0 && (
-            <p className="text-[#7BA05B] font-medium mt-2">{nbValides} titre(s) validé(s) · {nbImportes} importé(s)</p>
-          )}
+          <div className="flex items-center gap-4 mt-2 text-sm">
+            {nbValides > 0 && (
+              <span className="text-[#7BA05B] font-medium">{nbValides} validé(s)</span>
+            )}
+            {nbImportes > 0 && (
+              <span className="text-[#4A6FA5] font-medium">{nbImportes} importé(s)</span>
+            )}
+            {!loading && allTitres.length > 0 && (
+              <span className="text-muted-foreground">
+                Page {page + 1} · titres {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, allTitres.length)} sur {allTitres.length}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Barre de recherche */}
@@ -259,25 +321,42 @@ export default function DecouvertePage() {
           </div>
         )}
 
-        {/* Liste des titres proposés */}
+        {/* Liste paginée */}
         {loading ? (
           <p className="text-center text-muted-foreground py-12">Chargement de la musique...</p>
-        ) : titres.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12">Aucun titre proposé. Utilisez la recherche pour ajouter des titres.</p>
+        ) : currentTitres.length === 0 ? (
+          <p className="text-center text-muted-foreground py-12">
+            Aucun titre proposé. Utilisez la recherche pour en ajouter.
+          </p>
         ) : (
           <div className="space-y-3">
-            {titres.map((t) => <TitreCard key={t.id} titre={t} />)}
+            {currentTitres.map((t) => <TitreCard key={t.id} titre={t} />)}
           </div>
         )}
 
-        {/* Bouton continuer */}
-        <div className="mt-8 pb-8">
-          <Button
-            onClick={() => router.push('/app')}
-            size="lg"
-            className="w-full"
-          >
-            Continuer →
+        {/* Actions bas de page */}
+        <div className="mt-8 pb-8 space-y-3">
+          {/* Voir d'autres titres */}
+          {!loading && allTitres.length > 0 && (
+            <Button
+              onClick={handleNext}
+              variant="outline"
+              className="w-full"
+              disabled={loadingMore}
+            >
+              {loadingMore ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Génération de nouveaux titres...</>
+              ) : hasNextPageLocal ? (
+                <><ChevronRight className="h-4 w-4 mr-2" /> Voir les {Math.min(PAGE_SIZE, allTitres.length - (page + 1) * PAGE_SIZE)} titres suivants</>
+              ) : (
+                <><ChevronRight className="h-4 w-4 mr-2" /> Voir d&apos;autres titres (IA)</>
+              )}
+            </Button>
+          )}
+
+          {/* Continuer vers le lecteur */}
+          <Button onClick={() => router.push('/app')} size="lg" className="w-full">
+            Continuer vers le lecteur →
           </Button>
         </div>
       </div>

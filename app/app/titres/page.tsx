@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Upload, Play, Trash2, MoreHorizontal, RefreshCw, Infinity } from 'lucide-react';
+import { Upload, Trash2, RefreshCw, Infinity, ListPlus, Check, Plus } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
 
 interface Titre {
@@ -22,6 +22,8 @@ interface Titre {
   dans_playlist_favorite: boolean;
   ordre: number;
 }
+
+interface UserPlaylist { id: string; nom: string }
 
 const REP_OPTIONS = [
   { label: '1×', value: 1, loop: false },
@@ -40,6 +42,14 @@ export default function TitresPage() {
   const [editNotes, setEditNotes] = useState<Record<string, string>>({});
   const [showReps, setShowReps] = useState<string | null>(null);
 
+  // Playlists
+  const [userPlaylists, setUserPlaylists] = useState<UserPlaylist[]>([]);
+  const [showPlaylistMenu, setShowPlaylistMenu] = useState<string | null>(null); // titre id
+  const [addingToPlaylist, setAddingToPlaylist] = useState<string | null>(null); // playlist id
+  const [showNewPlaylistInput, setShowNewPlaylistInput] = useState<string | null>(null); // titre id
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const newPlaylistRef = useRef<HTMLInputElement>(null);
+
   const loadTitres = useCallback(async () => {
     const url = search ? `/api/titres?q=${encodeURIComponent(search)}` : '/api/titres';
     const res = await fetch(url);
@@ -51,6 +61,42 @@ export default function TitresPage() {
   }, [search]);
 
   useEffect(() => { loadTitres(); }, [loadTitres]);
+
+  useEffect(() => {
+    fetch('/api/playlists').then(r => r.json()).then(({ playlists }) => setUserPlaylists(playlists ?? []));
+  }, []);
+
+  async function addToPlaylist(titreId: string, playlistId: string) {
+    setAddingToPlaylist(playlistId);
+    const res = await fetch(`/api/playlists/${playlistId}/titres`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titre_id: titreId }),
+    });
+    if (res.ok) {
+      toast({ title: 'Titre ajouté', description: 'Ajouté à la playlist avec succès.' });
+    } else {
+      toast({ title: 'Erreur', description: "Impossible d'ajouter le titre.", variant: 'destructive' });
+    }
+    setAddingToPlaylist(null);
+    setShowPlaylistMenu(null);
+    setShowNewPlaylistInput(null);
+  }
+
+  async function createPlaylistAndAdd(titreId: string) {
+    if (!newPlaylistName.trim()) return;
+    const res = await fetch('/api/playlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nom: newPlaylistName.trim() }),
+    });
+    if (res.ok) {
+      const { playlist } = await res.json();
+      setUserPlaylists((p) => [...p, playlist]);
+      await addToPlaylist(titreId, playlist.id);
+      setNewPlaylistName('');
+    }
+  }
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -175,6 +221,67 @@ export default function TitresPage() {
                           onCheckedChange={(checked) => updateTitre(t.id, { dans_playlist_favorite: checked })}
                         />
                         <span className="text-sm text-muted-foreground">Playlist Favorite</span>
+                      </div>
+
+                      {/* Ajouter à une playlist */}
+                      <div className="relative">
+                        <button
+                          onClick={() => {
+                            setShowPlaylistMenu(showPlaylistMenu === t.id ? null : t.id);
+                            setShowNewPlaylistInput(null);
+                          }}
+                          className="flex items-center gap-1 text-sm text-[#4A6FA5] hover:underline"
+                        >
+                          <ListPlus className="h-4 w-4" /> Playlist
+                        </button>
+                        {showPlaylistMenu === t.id && (
+                          <div className="absolute z-20 top-8 left-0 bg-white border rounded-lg shadow-lg p-2 min-w-[200px] space-y-1">
+                            {userPlaylists.length === 0 && (
+                              <p className="text-xs text-muted-foreground px-2 py-1">Aucune playlist</p>
+                            )}
+                            {userPlaylists.map((pl) => (
+                              <button
+                                key={pl.id}
+                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm rounded hover:bg-[#EDEAE3]"
+                                onClick={() => addToPlaylist(t.id, pl.id)}
+                                disabled={addingToPlaylist === pl.id}
+                              >
+                                {addingToPlaylist === pl.id
+                                  ? <span className="text-xs">...</span>
+                                  : <Check className="h-3 w-3 opacity-0 peer-checked:opacity-100" />
+                                }
+                                {pl.nom}
+                              </button>
+                            ))}
+                            {/* New playlist inline */}
+                            {showNewPlaylistInput === t.id ? (
+                              <div className="flex gap-1 px-1 pt-1">
+                                <Input
+                                  ref={newPlaylistRef}
+                                  value={newPlaylistName}
+                                  onChange={(e) => setNewPlaylistName(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && createPlaylistAndAdd(t.id)}
+                                  placeholder="Nom..."
+                                  className="h-7 text-xs"
+                                />
+                                <button
+                                  onClick={() => createPlaylistAndAdd(t.id)}
+                                  className="px-2 py-1 text-xs bg-[#4A6FA5] text-white rounded"
+                                >OK</button>
+                              </div>
+                            ) : (
+                              <button
+                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-[#4A6FA5] rounded hover:bg-[#EDEAE3]"
+                                onClick={() => {
+                                  setShowNewPlaylistInput(t.id);
+                                  setTimeout(() => newPlaylistRef.current?.focus(), 50);
+                                }}
+                              >
+                                <Plus className="h-3 w-3" /> Nouvelle playlist...
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Répétitions */}

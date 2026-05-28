@@ -1,11 +1,12 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Play, Pause, Music } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Play, Pause, Music, ListMusic, Plus, Trash2, Loader2 } from 'lucide-react';
 import { useAudioPlayer, type PlaylistType, type GammaMode } from '@/hooks/use-audio-player';
 import { formatDuration, getCurrentPhase } from '@/lib/utils';
 import Link from 'next/link';
@@ -27,12 +28,36 @@ const PLAYLIST_LABELS: Record<PlaylistType, string> = {
   favorite: '⭐ Favorite',
 };
 
+interface UserPlaylist {
+  id: string;
+  nom: string;
+  created_at: string;
+}
+
+interface PlaylistTrack {
+  id: string;
+  titre: string;
+  artiste: string;
+  audio_url: string;
+  repetitions: number;
+  boucle_infinie: boolean;
+}
+
 export default function PlayerPage() {
   const [profil, setProfil] = useState<Profil | null>(null);
   const [activePlaylist, setActivePlaylist] = useState<PlaylistType>('matin');
   const [conseil, setConseil] = useState<string | null>(null);
   const [messageActif, setMessageActif] = useState<{ titre: string; audio_url: string | null } | null>(null);
   const [messageEnabled, setMessageEnabled] = useState(false);
+
+  // User-created playlists
+  const [userPlaylists, setUserPlaylists] = useState<UserPlaylist[]>([]);
+  const [launchingPlaylistId, setLaunchingPlaylistId] = useState<string | null>(null);
+  const [activeUserPlaylistId, setActiveUserPlaylistId] = useState<string | null>(null);
+  const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
+  const createInputRef = useRef<HTMLInputElement>(null);
 
   const player = useAudioPlayer(
     profil?.gamma_gain ?? 0.04,
@@ -44,7 +69,16 @@ export default function PlayerPage() {
       if (p) setProfil(p);
     });
     loadConseil();
+    loadUserPlaylists();
   }, []);
+
+  async function loadUserPlaylists() {
+    const res = await fetch('/api/playlists');
+    if (res.ok) {
+      const { playlists } = await res.json();
+      setUserPlaylists(playlists ?? []);
+    }
+  }
 
   useEffect(() => {
     loadConseil();
@@ -96,6 +130,51 @@ export default function PlayerPage() {
     });
   }
 
+  async function launchUserPlaylist(pl: UserPlaylist) {
+    setLaunchingPlaylistId(pl.id);
+    try {
+      const res = await fetch(`/api/playlists/${pl.id}/titres`);
+      if (!res.ok) throw new Error('fetch failed');
+      const { titres } = await res.json();
+      if (!titres || titres.length === 0) {
+        toast({ title: 'Playlist vide', description: 'Ajoutez des titres depuis "Mes titres".' });
+        return;
+      }
+      setActiveUserPlaylistId(pl.id);
+      setActivePlaylist('matin'); // reset system playlist highlight
+      await player.playTrackList(titres as PlaylistTrack[], pl.nom);
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de charger la playlist.', variant: 'destructive' });
+    } finally {
+      setLaunchingPlaylistId(null);
+    }
+  }
+
+  async function createPlaylist() {
+    if (!newPlaylistName.trim()) return;
+    setCreatingPlaylist(true);
+    const res = await fetch('/api/playlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nom: newPlaylistName.trim() }),
+    });
+    if (res.ok) {
+      const { playlist } = await res.json();
+      setUserPlaylists((p) => [...p, playlist]);
+      setNewPlaylistName('');
+      setShowCreatePlaylist(false);
+      toast({ title: 'Playlist créée', description: `"${playlist.nom}" prête — ajoutez des titres depuis "Mes titres".` });
+    }
+    setCreatingPlaylist(false);
+  }
+
+  async function deleteUserPlaylist(id: string) {
+    if (!confirm('Supprimer cette playlist ?')) return;
+    await fetch(`/api/playlists/${id}`, { method: 'DELETE' });
+    setUserPlaylists((p) => p.filter((x) => x.id !== id));
+    if (activeUserPlaylistId === id) setActiveUserPlaylistId(null);
+  }
+
   const gammaLabels = ['Doux', 'Normal', 'Fort'];
   const gammaValues = [0.02, 0.04, 0.08];
 
@@ -121,6 +200,87 @@ export default function PlayerPage() {
           </Button>
         ))}
       </div>
+
+      {/* Mes playlists */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <ListMusic className="h-4 w-4 text-[#4A6FA5]" />
+              <span className="font-medium text-sm">Mes playlists</span>
+            </div>
+            <button
+              onClick={() => {
+                setShowCreatePlaylist(!showCreatePlaylist);
+                if (!showCreatePlaylist) setTimeout(() => createInputRef.current?.focus(), 50);
+              }}
+              className="text-[#4A6FA5] hover:opacity-70 transition-opacity"
+              title="Nouvelle playlist"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Formulaire création */}
+          {showCreatePlaylist && (
+            <div className="flex gap-2 mb-3">
+              <Input
+                ref={createInputRef}
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createPlaylist()}
+                placeholder='Ex : "Matin énergique"'
+                className="text-sm"
+              />
+              <Button size="sm" onClick={createPlaylist} disabled={creatingPlaylist || !newPlaylistName.trim()}>
+                {creatingPlaylist ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Créer'}
+              </Button>
+            </div>
+          )}
+
+          {userPlaylists.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucune playlist. Cliquez sur <span className="text-[#4A6FA5]">+</span> pour en créer une, puis ajoutez des titres depuis &quot;Mes titres&quot;.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {userPlaylists.map((pl) => (
+                <div
+                  key={pl.id}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
+                    activeUserPlaylistId === pl.id
+                      ? 'bg-[#4A6FA5]/10 border-[#4A6FA5]'
+                      : 'hover:bg-[#EDEAE3] border-transparent'
+                  }`}
+                >
+                  <span className="text-sm font-medium truncate flex-1 mr-2">{pl.nom}</span>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant={activeUserPlaylistId === pl.id ? 'default' : 'outline'}
+                      className={`h-8 px-3 text-xs ${activeUserPlaylistId === pl.id ? 'bg-[#4A6FA5]' : ''}`}
+                      onClick={() => launchUserPlaylist(pl)}
+                      disabled={launchingPlaylistId === pl.id}
+                    >
+                      {launchingPlaylistId === pl.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <><Play className="h-3 w-3 mr-1" />Lancer</>
+                      )}
+                    </Button>
+                    <button
+                      onClick={() => deleteUserPlaylist(pl.id)}
+                      className="text-muted-foreground hover:text-destructive p-1"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Grand bouton lecture */}
       <div className="flex flex-col items-center gap-4 py-8">

@@ -159,6 +159,7 @@ export type Database = {
           pochette_url: string | null;
           musicbrainz_id: string | null;
           statut: 'propose' | 'valide' | 'refuse' | 'incertain' | 'importe';
+          phase_recommandee: 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher' | null;
           created_at: string;
         };
         Insert: {
@@ -170,6 +171,7 @@ export type Database = {
           pochette_url?: string | null;
           musicbrainz_id?: string | null;
           statut?: 'propose' | 'valide' | 'refuse' | 'incertain' | 'importe';
+          phase_recommandee?: 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher' | null;
           created_at?: string;
         };
         Update: {
@@ -181,7 +183,54 @@ export type Database = {
           pochette_url?: string | null;
           musicbrainz_id?: string | null;
           statut?: 'propose' | 'valide' | 'refuse' | 'incertain' | 'importe';
+          phase_recommandee?: 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher' | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      playlists: {
+        Row: {
+          id: string;
+          user_id: string;
+          nom: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          nom: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          nom?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      playlist_titres: {
+        Row: {
+          id: string;
+          playlist_id: string;
+          titre_id: string;
+          ordre: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          playlist_id: string;
+          titre_id: string;
+          ordre?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          playlist_id?: string;
+          titre_id?: string;
+          ordre?: number;
         };
         Relationships: [];
       };

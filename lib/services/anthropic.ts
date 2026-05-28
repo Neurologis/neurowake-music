@@ -111,6 +111,113 @@ export async function sendOnboardingMessage(
   return { response: text, isComplete: false };
 }
 
+// ---------------------------------------------------------------------------
+// Music discovery via AI — replaces the MusicBrainz + filter approach.
+// Claude generates curated, real, popular titles for the user's bump period,
+// with a recommended time-of-day phase for each track.
+// ---------------------------------------------------------------------------
+export type PhaseRecommandee = 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
+
+export interface TitreDecouvert {
+  titre: string;
+  artiste: string;
+  annee: number;
+  phase_recommandee: PhaseRecommandee;
+}
+
+export async function generateMusicDiscovery(params: {
+  annee_naissance: number;
+  bump_annee_debut: number;
+  bump_annee_fin: number;
+  genres_preferes: string[];
+  passions: string[];
+  pays_jeunesse: string;
+  chanson_madeleine?: string | null;
+  exclude_artiste_titre?: string[];
+  limit?: number;
+}): Promise<TitreDecouvert[]> {
+  const {
+    bump_annee_debut,
+    bump_annee_fin,
+    genres_preferes,
+    passions,
+    pays_jeunesse,
+    chanson_madeleine,
+    exclude_artiste_titre = [],
+    limit = 30,
+  } = params;
+
+  const genresStr = genres_preferes.length > 0 ? genres_preferes.join(', ') : 'variété, chanson populaire';
+  const passionsStr = passions.length > 0 ? passions.join(', ') : 'musique';
+  const excludeNote =
+    exclude_artiste_titre.length > 0
+      ? `\nNe JAMAIS inclure ces titres déjà proposés :\n${exclude_artiste_titre.slice(0, 60).join('\n')}`
+      : '';
+  const madeleineNote = chanson_madeleine
+    ? `\nChanson madeleine : "${chanson_madeleine}" — inspire-toi du style et de l'époque.`
+    : '';
+
+  const prompt = `Tu es expert en histoire musicale et catalogues de hits.
+
+Génère exactement ${limit} titres musicaux RÉELS, POPULAIRES et VÉRIFIABLES pour ce profil :
+
+Période musicale formatrice : ${bump_annee_debut}–${bump_annee_fin}
+Pays d'origine : ${pays_jeunesse}
+Genres préférés : ${genresStr}
+Passions & activités : ${passionsStr}${madeleineNote}${excludeNote}
+
+RÈGLES ABSOLUES :
+1. Uniquement des titres ayant réellement existé et été populaires (hits, pas des B-sides obscures)
+2. Correspondance culturelle stricte avec ${pays_jeunesse} (artistes locaux prioritaires)
+3. Maximum 2 titres par artiste sur l'ensemble de la liste
+4. Répartition équilibrée : ~${Math.round(limit / 5)} titres par phase
+
+PHASES DE JOURNÉE (énergie du titre) :
+• "matin"      = énergique, dynamique, optimiste, tempo rapide
+• "soins"      = doux, calme, apaisant, lent
+• "repas"      = gai, festif, convivial, enjoué
+• "apres-midi" = nostalgique, sentimental, mélodieux, mélancolique
+• "coucher"    = lent, introspectif, relaxant
+
+Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
+[{"titre":"...","artiste":"...","annee":1978,"phase_recommandee":"matin"},...]`;
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const text = response.content[0].type === 'text' ? response.content[0].text : '[]';
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return [];
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+      titre?: unknown;
+      artiste?: unknown;
+      annee?: unknown;
+      phase_recommandee?: unknown;
+    }>;
+
+    const VALID_PHASES: PhaseRecommandee[] = ['matin', 'soins', 'repas', 'apres-midi', 'coucher'];
+
+    return parsed
+      .filter((t) => t.titre && t.artiste && t.annee)
+      .map((t) => ({
+        titre: String(t.titre),
+        artiste: String(t.artiste),
+        annee: parseInt(String(t.annee), 10) || bump_annee_debut,
+        phase_recommandee: VALID_PHASES.includes(t.phase_recommandee as PhaseRecommandee)
+          ? (t.phase_recommandee as PhaseRecommandee)
+          : 'apres-midi',
+      }))
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
 export async function filterMusicBrainzResults(
   titres: object[],
   profil: object,
