@@ -78,23 +78,63 @@ export default function OnboardingPage() {
     setIsTyping(true);
 
     try {
+      console.log('[onboarding] → sending message, history length:', newHistory.length - 1);
+
       const res = await fetch('/api/onboarding/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg, history: newHistory.slice(0, -1), langue: 'fr' }),
       });
 
-      const data = await res.json();
+      // Always parse body — needed for error details too
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error('[onboarding] Failed to parse API response JSON:', parseErr);
+        toast({ title: 'Erreur', description: 'Réponse invalide du serveur. Réessayez.', variant: 'destructive' });
+        setMessages(newHistory); // keep chat without an empty bubble
+        return;
+      }
+
+      console.log('[onboarding] ← API response:', {
+        status: res.status,
+        ok: res.ok,
+        isComplete: data.isComplete,
+        responseLength: typeof data.response === 'string' ? data.response.length : 'N/A',
+        error: data.error ?? null,
+      });
+
+      // Non-2xx: surface the real error, never render an empty bubble
+      if (!res.ok) {
+        const errMsg = (data.error as string) ?? `Erreur serveur (${res.status})`;
+        console.error('[onboarding] API returned error:', res.status, data);
+        toast({ title: 'Erreur assistant', description: errMsg, variant: 'destructive' });
+        setMessages(newHistory); // keep chat without an empty bubble
+        return;
+      }
 
       if (data.isComplete && data.data) {
-        setExtractedData(data.data);
+        setExtractedData(data.data as Partial<ProfileData>);
         setMessages([...newHistory, { role: 'assistant', content: "Parfait ! Voici ce que j'ai retenu. Vérifiez et validez votre profil." }]);
         setPhase('summary');
-      } else {
-        setMessages([...newHistory, { role: 'assistant', content: data.response }]);
+        return;
       }
-    } catch {
-      toast({ title: 'Erreur', description: 'Impossible de contacter l\'assistant', variant: 'destructive' });
+
+      // Normal reply — guard against empty string
+      const responseText = typeof data.response === 'string' ? data.response.trim() : '';
+      if (!responseText) {
+        console.error('[onboarding] Empty or missing response field in:', data);
+        toast({ title: 'Erreur', description: "Réponse vide reçue. Réessayez.", variant: 'destructive' });
+        setMessages(newHistory); // no empty bubble
+        return;
+      }
+
+      setMessages([...newHistory, { role: 'assistant', content: responseText }]);
+    } catch (err) {
+      console.error('[onboarding] Network error:', err);
+      toast({ title: 'Erreur réseau', description: "Vérifiez votre connexion et réessayez.", variant: 'destructive' });
+      setMessages(newHistory); // no empty bubble
     } finally {
       setIsTyping(false);
     }

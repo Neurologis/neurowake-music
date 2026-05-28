@@ -80,8 +80,19 @@ export async function sendOnboardingMessage(
   userMessage: string,
   langue: string
 ): Promise<{ response: string; isComplete: boolean; data?: object }> {
+  // Anthropic's API requires that the first message has role 'user'.
+  // The client passes a history that starts with the locally-generated welcome bubble
+  // (role: 'assistant'), which would immediately throw an invalid_request_error.
+  // Fix: skip all leading assistant messages before building the messages array.
+  const firstUserIdx = history.findIndex((m) => m.role === 'user');
+  const normalizedHistory = firstUserIdx >= 0 ? history.slice(firstUserIdx) : [];
+
+  console.log(
+    `[sendOnboardingMessage] history=${history.length} messages, normalized=${normalizedHistory.length}, lang=${langue}`
+  );
+
   const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({
+    ...normalizedHistory.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     })),
@@ -97,6 +108,10 @@ export async function sendOnboardingMessage(
 
   const text =
     response.content[0].type === 'text' ? response.content[0].text : '';
+
+  console.log(
+    `[sendOnboardingMessage] Response: stop_reason=${response.stop_reason}, text_length=${text.length}, first100="${text.slice(0, 100)}"`
+  );
 
   // Robust completion detection — handles:
   //   • spaces around colon:   "isComplete" : true

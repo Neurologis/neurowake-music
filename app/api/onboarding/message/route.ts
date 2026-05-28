@@ -22,15 +22,22 @@ export async function POST(req: NextRequest) {
     return apiError('Invalid request body', 'VALIDATION_ERROR', 400);
   }
 
+  console.log(
+    `[onboarding/message] user=${userId.slice(0, 8)}… historyLen=${parsed.data.history.length} msgLen=${parsed.data.message.length}`
+  );
+
   try {
     const result = await sendOnboardingMessage(
       parsed.data.history as Array<{ role: 'user' | 'assistant'; content: string }>,
       parsed.data.message as string,
       parsed.data.langue as string,
     );
+    console.log(
+      `[onboarding/message] OK — isComplete=${result.isComplete} responseLen=${result.response?.length ?? 0}`
+    );
     return NextResponse.json(result);
   } catch (err) {
-    console.error('[onboarding/message]', err);
+    console.error('[onboarding/message] Anthropic error:', err);
     return apiError('AI service unavailable', 'AI_ERROR', 503);
   }
 }
