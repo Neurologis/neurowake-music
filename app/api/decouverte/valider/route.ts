@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 const schema = z.object({
   titre_id: z.string().uuid(),
-  statut: z.enum(['valide', 'refuse', 'incertain']),
+  // 'propose' is accepted so the client can deselect (reset) a previous choice
+  statut: z.enum(['propose', 'valide', 'refuse', 'incertain']),
 });
 
 export async function POST(req: NextRequest) {

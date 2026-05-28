@@ -41,12 +41,17 @@ export default function DecouvertePage() {
     setLoading(false);
   }
 
-  async function valider(id: string, statut: 'valide' | 'refuse' | 'incertain') {
-    setTitres(t => t.map(x => x.id === id ? { ...x, statut } : x));
+  async function valider(id: string, clicked: 'valide' | 'refuse' | 'incertain') {
+    // Toggle: re-clicking the already-selected choice resets to 'propose' (deselect).
+    // Clicking a different choice switches to it.
+    const current = titres.find(t => t.id === id);
+    const newStatut: Titre['statut'] = current?.statut === clicked ? 'propose' : clicked;
+
+    setTitres(t => t.map(x => x.id === id ? { ...x, statut: newStatut } : x));
     await fetch('/api/decouverte/valider', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titre_id: id, statut }),
+      body: JSON.stringify({ titre_id: id, statut: newStatut }),
     });
   }
 
@@ -113,16 +118,45 @@ export default function DecouvertePage() {
               <div className="font-semibold truncate">{titre.titre}</div>
               <div className="text-sm text-muted-foreground">{titre.artiste}{titre.annee ? ` (${titre.annee})` : ''}</div>
 
-              {/* Boutons validation */}
-              {titre.statut === 'propose' && (
+              {/* Boutons validation — toujours visibles sauf si importé.
+                  Cliquer sur le bouton déjà sélectionné le désélectionne (reset → propose).
+                  Cliquer sur un autre bouton change le choix. */}
+              {!isImporte && (
                 <div className="flex gap-2 mt-3 flex-wrap">
-                  <Button size="sm" variant="outline" className="border-[#7BA05B] text-[#7BA05B] hover:bg-green-50" onClick={() => valider(titre.id, 'valide')}>
+                  <Button
+                    size="sm"
+                    variant={titre.statut === 'valide' ? 'default' : 'outline'}
+                    className={
+                      titre.statut === 'valide'
+                        ? 'bg-[#7BA05B] hover:bg-[#7BA05B]/80 text-white border-[#7BA05B]'
+                        : 'border-[#7BA05B] text-[#7BA05B] hover:bg-green-50'
+                    }
+                    onClick={() => valider(titre.id, 'valide')}
+                  >
                     <Check className="h-4 w-4 mr-1" /> Il aimait
                   </Button>
-                  <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-red-50" onClick={() => valider(titre.id, 'refuse')}>
+                  <Button
+                    size="sm"
+                    variant={titre.statut === 'refuse' ? 'default' : 'outline'}
+                    className={
+                      titre.statut === 'refuse'
+                        ? 'bg-destructive hover:bg-destructive/80 text-white border-destructive'
+                        : 'border-destructive text-destructive hover:bg-red-50'
+                    }
+                    onClick={() => valider(titre.id, 'refuse')}
+                  >
                     <X className="h-4 w-4 mr-1" /> Pas vraiment
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => valider(titre.id, 'incertain')}>
+                  <Button
+                    size="sm"
+                    variant={titre.statut === 'incertain' ? 'default' : 'outline'}
+                    className={
+                      titre.statut === 'incertain'
+                        ? 'bg-gray-400 hover:bg-gray-400/80 text-white'
+                        : ''
+                    }
+                    onClick={() => valider(titre.id, 'incertain')}
+                  >
                     <HelpCircle className="h-4 w-4 mr-1" /> Je ne sais pas
                   </Button>
                 </div>
