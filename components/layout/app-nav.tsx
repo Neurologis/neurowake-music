@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Music, ListMusic, MessageSquare, Settings, LogOut, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -19,12 +19,13 @@ const navItems = [
 
 export function AppNav({ profil, userEmail }: NavProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = createClient();
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    router.push('/login');
+    // Hard reload so the middleware sees the cleared session cookie immediately.
+    // A soft router.push('/login') can be intercepted before the cookie is flushed.
+    window.location.href = '/login';
   }
 
   const isAdmin = userEmail === process.env.NEXT_PUBLIC_ADMIN_EMAIL;

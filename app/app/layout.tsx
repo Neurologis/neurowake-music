@@ -24,6 +24,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/onboarding');
   }
 
+  // Redirect to découverte if the user has recommended titles that are all
+  // still in the initial 'propose' state — meaning they haven't gone through
+  // the music-discovery step yet (e.g., closed the browser right after onboarding).
+  const { count: totalTitres } = await supabase
+    .from('titres_recommandes')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', session.user.id);
+
+  if ((totalTitres ?? 0) > 0) {
+    const { count: proposedTitres } = await supabase
+      .from('titres_recommandes')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', session.user.id)
+      .eq('statut', 'propose');
+
+    // Every title is still unreviewed → user never visited découverte
+    if (proposedTitres === totalTitres) {
+      redirect('/decouverte');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F5F0] flex">
       {/* Sidebar desktop */}

@@ -71,7 +71,16 @@ export default function PlayerPage() {
 
   async function handlePlay(type: PlaylistType) {
     setActivePlaylist(type);
-    await player.togglePlay(type);
+
+    // If the same playlist is already playing → pause (toggle off).
+    // If a different playlist is selected, or nothing is playing → start/switch.
+    if (player.isPlaying && activePlaylist === type) {
+      player.pause();
+      return;
+    }
+
+    // player.play() stops any current playback then loads + starts the new playlist
+    await player.play(type);
 
     // Log session start
     fetch('/api/session/log', {
@@ -106,7 +115,7 @@ export default function PlayerPage() {
             key={type}
             variant={activePlaylist === type ? 'default' : 'outline'}
             className={`text-sm h-12 ${activePlaylist === type ? 'bg-[#4A6FA5]' : ''}`}
-            onClick={() => setActivePlaylist(type)}
+            onClick={() => handlePlay(type)}
           >
             {PLAYLIST_LABELS[type]}
           </Button>
