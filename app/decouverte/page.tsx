@@ -276,13 +276,9 @@ export default function DecouvertePage() {
             onClick={() => router.push('/app')}
             size="lg"
             className="w-full"
-            disabled={nbImportes === 0}
           >
             Continuer →
           </Button>
-          {nbImportes === 0 && (
-            <p className="text-center text-sm text-muted-foreground mt-2">Importez au moins un titre pour continuer</p>
-          )}
         </div>
       </div>
     </div>
