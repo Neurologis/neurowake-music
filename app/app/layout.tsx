@@ -17,6 +17,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('user_id', session.user.id)
     .single();
 
+  // Redirect to onboarding if the profile doesn't exist yet or is incomplete.
+  // This covers both brand-new users (no profile row) and users who abandoned
+  // the onboarding before completing it.
+  if (!profil || !profil.onboarding_complet) {
+    redirect('/onboarding');
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F5F0] flex">
       {/* Sidebar desktop */}
