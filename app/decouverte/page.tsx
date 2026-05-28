@@ -58,12 +58,34 @@ export default function DecouvertePage() {
   }, []);
 
   async function loadTitres() {
-    const res = await fetch('/api/decouverte/titres');
-    if (res.ok) {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/decouverte/titres');
+
+      if (!res.ok) {
+        console.error('[decouverte] API error:', res.status);
+        toast({
+          title: 'Erreur de chargement',
+          description: `Impossible de charger les titres (${res.status}). Rechargez la page.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { titres: data } = await res.json();
+      console.log(`[decouverte] Loaded ${data?.length ?? 0} titles`);
       setAllTitres(data ?? []);
+    } catch (err) {
+      console.error('[decouverte] loadTitres error:', err);
+      toast({
+        title: 'Erreur réseau',
+        description: 'Impossible de charger les recommandations. Vérifiez votre connexion et rechargez.',
+        variant: 'destructive',
+      });
+    } finally {
+      // Always clear loading — even if fetch threw or timed out
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // Titles shown on the current page
@@ -323,11 +345,21 @@ export default function DecouvertePage() {
 
         {/* Liste paginée */}
         {loading ? (
-          <p className="text-center text-muted-foreground py-12">Chargement de la musique...</p>
+          <div className="py-12 text-center space-y-3">
+            <div className="text-4xl animate-spin inline-block">🎵</div>
+            <p className="text-muted-foreground font-medium">Analyse du profil musical en cours…</p>
+            <p className="text-sm text-muted-foreground">L&apos;IA sélectionne les titres les plus adaptés. Cela peut prendre 30 secondes.</p>
+          </div>
         ) : currentTitres.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12">
-            Aucun titre proposé. Utilisez la recherche pour en ajouter.
-          </p>
+          <div className="py-12 text-center space-y-4">
+            <p className="text-muted-foreground">Aucun titre proposé pour l&apos;instant.</p>
+            <div className="flex flex-col gap-2 items-center">
+              <Button variant="outline" onClick={loadTitres}>
+                🔄 Réessayer la génération IA
+              </Button>
+              <p className="text-xs text-muted-foreground">Ou utilisez la recherche ci-dessus pour ajouter des titres manuellement.</p>
+            </div>
+          </div>
         ) : (
           <div className="space-y-3">
             {currentTitres.map((t) => <TitreCard key={t.id} titre={t} />)}

@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { userId, error } = await requireAuthWithRateLimit(req, 10);
+  const { userId, error } = await requireAuthWithRateLimit(req, 30); // 6-10 questions + retries
   if (error) return error;
 
   const body = await req.json().catch(() => null);

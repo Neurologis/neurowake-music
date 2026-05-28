@@ -1,6 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Let the SDK read ANTHROPIC_API_KEY from the environment automatically.
+// Passing `apiKey: undefined` explicitly could mask missing-key errors on some
+// SDK versions, so we rely on the SDK's own env-var lookup.
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.error(
+    '[anthropic] ⚠️  ANTHROPIC_API_KEY is not set — all AI features will fail. ' +
+    'Set it in .env.local (development) or in your deployment environment variables.'
+  );
+}
+
+const client = new Anthropic();
 
 const ONBOARDING_SYSTEM = `Tu es un assistant bienveillant qui aide les aidants familiaux à créer un profil musical pour leur proche.
 
@@ -247,6 +257,7 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
     return result;
   } catch (parseErr) {
     console.error('[generateMusicDiscovery] JSON.parse failed:', parseErr);
+    console.error('[generateMusicDiscovery] Raw text was:', text.slice(0, 500));
     return [];
   }
 }

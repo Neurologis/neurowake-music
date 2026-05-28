@@ -66,10 +66,16 @@ export default function PlayerPage() {
 
   useEffect(() => {
     fetch('/api/profile').then(r => r.json()).then(({ profil: p }) => {
-      if (p) setProfil(p);
+      if (p) {
+        setProfil(p);
+        // Sync player gamma settings to the saved profile values
+        if (typeof p.gamma_gain === 'number') player.setGammaGain(p.gamma_gain);
+        if (p.gamma_mode) player.setGammaMode(p.gamma_mode);
+      }
     });
     loadConseil();
     loadUserPlaylists();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadUserPlaylists() {
@@ -107,14 +113,24 @@ export default function PlayerPage() {
     setActivePlaylist(type);
 
     // If the same playlist is already playing → pause (toggle off).
-    // If a different playlist is selected, or nothing is playing → start/switch.
+    // Uses stale `activePlaylist` intentionally: the state update above hasn't
+    // re-rendered yet, so activePlaylist still holds the pre-click value.
     if (player.isPlaying && activePlaylist === type) {
       player.pause();
       return;
     }
 
-    // player.play() stops any current playback then loads + starts the new playlist
-    await player.play(type);
+    // player.play() stops any current playback then loads + starts the new playlist.
+    // Returns false if the playlist is empty (no tracks imported yet).
+    const started = await player.play(type);
+
+    if (!started) {
+      toast({
+        title: 'Playlist vide',
+        description: 'Importez des fichiers audio dans "Mes titres" pour écouter cette playlist.',
+      });
+      return;
+    }
 
     // Log session start
     fetch('/api/session/log', {

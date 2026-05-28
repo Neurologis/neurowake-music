@@ -2,7 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
 import { createServerClient, createAdminClient } from '@/lib/supabase/server';
 import { generateItunesLink, generateAmazonLink } from '@/lib/services/music-metadata';
-import { generateMusicDiscovery } from '@/lib/services/anthropic';
+import { generateMusicDiscovery, type TitreDecouvert } from '@/lib/services/anthropic';
+
+/** Wraps a promise with a timeout. Returns the promise's value or an empty array after `ms` ms. */
+function withTimeout<T>(promise: Promise<T[]>, ms: number, label: string): Promise<T[]> {
+  return Promise.race([
+    promise,
+    new Promise<T[]>((resolve) =>
+      setTimeout(() => {
+        console.warn(`[${label}] Timeout after ${ms}ms — returning empty array`);
+        resolve([]);
+      }, ms)
+    ),
+  ]);
+}
 
 /** Insert titres_recommandes, retrying without phase_recommandee if the column doesn't exist yet. */
 async function safeInsertTitres(
@@ -90,16 +103,24 @@ export async function GET(req: NextRequest) {
     });
 
     try {
-      const titresIA = await generateMusicDiscovery({
-        annee_naissance: profil.annee_naissance,
-        bump_annee_debut: profil.bump_annee_debut,
-        bump_annee_fin: profil.bump_annee_fin,
-        genres_preferes: profil.genres_preferes ?? [],
-        passions: profil.passions ?? [],
-        pays_jeunesse: profil.pays_jeunesse,
-        chanson_madeleine: profil.chanson_madeleine,
-        limit: 30,
-      });
+      // Race AI generation against a 35-second timeout.
+      // This ensures the HTTP response is always sent before the infrastructure
+      // (Vercel / browser) kills the connection, which would make fetch() throw
+      // on the client and leave the loading spinner stuck forever.
+      const titresIA = await withTimeout<TitreDecouvert>(
+        generateMusicDiscovery({
+          annee_naissance: profil.annee_naissance,
+          bump_annee_debut: profil.bump_annee_debut,
+          bump_annee_fin: profil.bump_annee_fin,
+          genres_preferes: profil.genres_preferes ?? [],
+          passions: profil.passions ?? [],
+          pays_jeunesse: profil.pays_jeunesse,
+          chanson_madeleine: profil.chanson_madeleine,
+          limit: 30,
+        }),
+        35_000,
+        'decouverte/titres'
+      );
 
       console.log(`[decouverte/titres] AI returned ${titresIA.length} titles`);
 

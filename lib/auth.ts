@@ -57,7 +57,7 @@ export function checkRateLimit(
 
 export async function requireAuthWithRateLimit(
   req: NextRequest,
-  maxRequests = 10
+  maxRequests = 20   // raised from 10 — onboarding chat (6+ questions × 3 retries) needs headroom
 ): Promise<
   | { userId: string; error: null }
   | { userId: null; error: NextResponse }

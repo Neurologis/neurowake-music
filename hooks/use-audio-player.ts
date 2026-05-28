@@ -216,13 +216,20 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     await playTrack(newTracks[0], 0);
   }, [playTrack]);
 
-  const play = useCallback(async (type?: PlaylistType) => {
+  /**
+   * Loads and starts the playlist.
+   * Returns `true` if at least one track was found and playback started,
+   * `false` if the playlist was empty (caller can show an appropriate message).
+   */
+  const play = useCallback(async (type?: PlaylistType): Promise<boolean> => {
     const playlistType = type ?? state.playlistType;
     const loaded = await loadPlaylist(playlistType);
     if (loaded && loaded.length > 0) {
       repetitionCountRef.current = 0;
       await playTrack(loaded[0], 0);
+      return true;
     }
+    return false;
   }, [loadPlaylist, playTrack, state.playlistType]);
 
   const pause = useCallback(() => {
@@ -242,13 +249,15 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     }
   }, []);
 
-  const togglePlay = useCallback(async (type?: PlaylistType) => {
+  const togglePlay = useCallback(async (type?: PlaylistType): Promise<boolean> => {
     if (state.isPlaying) {
       pause();
+      return true;
     } else if (audioCtxRef.current?.state === 'suspended') {
       resume();
+      return true;
     } else {
-      await play(type);
+      return play(type);
     }
   }, [state.isPlaying, pause, resume, play]);
 
