@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!parsed.success) return apiError('Invalid body', 'VALIDATION_ERROR', 400);
 
   const { data, error: dbError } = await supabase
-    .from('conseils').update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .from('conseils').update({ ...parsed.data as any, updated_at: new Date().toISOString() })
     .eq('id', params.id).select().single();
   if (dbError) return apiError('Update failed', 'DB_ERROR', 500);
 
