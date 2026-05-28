@@ -9,7 +9,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="bg-[#0d0d0d] border-b border-gray-800">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <img src="/Logo Neurowake Music.png" alt="NeuroWake Music" className="h-40 w-auto" />
+          <img src="/logo-neurowake.png" alt="NeuroWake Music" className="h-40 w-auto" />
           <div className="flex gap-3">
             <Link href="/login">
               <Button variant="outline">Se connecter</Button>
