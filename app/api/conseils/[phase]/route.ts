@@ -35,11 +35,14 @@ export async function GET(
   const vusIds = (vus ?? []).map((v) => v.conseil_id);
 
   // Get unseen conseil
+  type Phase = 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
+  type Langue = 'fr' | 'es' | 'en';
+
   let query = supabase
     .from('conseils')
     .select('id, texte')
-    .eq('phase', params.phase)
-    .eq('langue', langue)
+    .eq('phase', params.phase as Phase)
+    .eq('langue', langue as Langue)
     .eq('actif', true)
     .order('ordre', { ascending: true })
     .limit(1);
@@ -60,8 +63,8 @@ export async function GET(
     const { data: reset } = await supabase
       .from('conseils')
       .select('id, texte')
-      .eq('phase', params.phase)
-      .eq('langue', langue)
+      .eq('phase', params.phase as Phase)
+      .eq('langue', langue as Langue)
       .eq('actif', true)
       .order('ordre', { ascending: true })
       .limit(1);

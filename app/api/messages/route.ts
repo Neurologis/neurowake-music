@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     .order('ordre', { ascending: true });
 
   if (phase) {
-    query = query.eq('phase', phase);
+    query = query.eq('phase', phase as 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher' | 'toutes');
   }
 
   const { data, error: dbError } = await query;

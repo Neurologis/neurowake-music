@@ -16,6 +16,7 @@ interface Titre {
   annee: number | null;
   pochette_url: string | null;
   statut: 'propose' | 'valide' | 'refuse' | 'incertain' | 'importe';
+  musicbrainz_id?: string | null;
   itunes_url?: string;
   amazon_url?: string;
 }

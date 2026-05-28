@@ -24,9 +24,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await sendOnboardingMessage(
-      parsed.data.history,
-      parsed.data.message,
-      parsed.data.langue
+      parsed.data.history as Array<{ role: 'user' | 'assistant'; content: string }>,
+      parsed.data.message as string,
+      parsed.data.langue as string,
     );
     return NextResponse.json(result);
   } catch (err) {

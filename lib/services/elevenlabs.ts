@@ -14,9 +14,11 @@ export async function cloneVoice(
   const formData = new FormData();
   formData.append('name', voiceName);
   formData.append('description', 'Voice clone for NeuroWake');
+  // new Uint8Array(buffer) creates a Uint8Array<ArrayBuffer> (not ArrayBufferLike)
+  // which satisfies the BlobPart / ArrayBufferView constraint in Node.js v24 types.
   formData.append(
     'files',
-    new Blob([audioBuffer], { type: 'audio/mpeg' }),
+    new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' }),
     'recording.mp3'
   );
 

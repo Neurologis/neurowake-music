@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
   const langue = req.nextUrl.searchParams.get('langue');
 
   let query = supabase.from('conseils').select('*').order('ordre', { ascending: true });
-  if (phase) query = query.eq('phase', phase);
-  if (langue) query = query.eq('langue', langue);
+  if (phase) query = query.eq('phase', phase as 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher');
+  if (langue) query = query.eq('langue', langue as 'fr' | 'es' | 'en');
 
   const { data, error: dbError } = await query;
   if (dbError) return apiError('DB error', 'DB_ERROR', 500);
@@ -48,8 +48,13 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return apiError('Invalid body', 'VALIDATION_ERROR', 400);
 
   const { data, error: dbError } = await supabase
-    // @ts-ignore
-.from('conseils').insert(parsed.data).select().single();
+    .from('conseils').insert({
+      phase: parsed.data.phase,
+      langue: parsed.data.langue,
+      texte: parsed.data.texte,
+      actif: parsed.data.actif,
+      ordre: parsed.data.ordre,
+    }).select().single();
   if (dbError) return apiError('Insert failed', 'DB_ERROR', 500);
 
   return NextResponse.json(data, { status: 201 });

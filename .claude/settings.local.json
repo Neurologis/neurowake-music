@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"C:\\\\Program Files\\\\nodejs\\\\node_modules\\\\npm\\\\bin\\\\npx-cli.js\" --yes tsc --noEmit)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); Set-Location \"C:\\\\Users\\\\jeanc\\\\Desktop\\\\Dossiers\\\\BLOG BL ALZHEIMER\\\\Projet Musiques Autobiograpiques IA\\\\Code Neuro Wake Music\"; pnpm run type-check 2>&1)"
+    ]
+  }
+}
