@@ -6,19 +6,45 @@ import { filterMusicBrainzResults } from '@/lib/services/anthropic';
 import { z } from 'zod';
 import type { Json } from '@/lib/supabase/types';
 
+// Helper: normalise a string array that the AI might return as a comma-separated string
+function toStringArray(v: unknown): string[] {
+  if (!v) return [];
+  if (typeof v === 'string') return v.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+  if (Array.isArray(v)) return (v as unknown[]).map(String).filter(Boolean);
+  return [];
+}
+
 const schema = z.object({
   profil: z.object({
     prenom_proche: z.string().optional(),
-    annee_naissance: z.number().int().min(1900).max(2000),
+    // ANNEES selector in the frontend goes up to 2009 — raise the cap to match
+    annee_naissance: z.number().int().min(1900).max(2010),
     ville_jeunesse: z.string().min(1),
     pays_jeunesse: z.string().default('France'),
     bump_annee_debut: z.number().int(),
     bump_annee_fin: z.number().int(),
-    genres_preferes: z.array(z.string()).default([]),
-    passions: z.array(z.string()).default([]),
+    // AI may return a comma-separated string instead of an array
+    genres_preferes: z.preprocess(toStringArray, z.array(z.string()).default([])),
+    passions: z.preprocess(toStringArray, z.array(z.string()).default([])),
     chanson_madeleine: z.string().optional(),
-    sensibilite_volume: z.enum(['douce', 'normale', 'sensible']).default('normale'),
-    acouphenes: z.boolean().default(false),
+    // AI is prompted with "doux/normal/fort" but schema expects "douce/normale/sensible"
+    sensibilite_volume: z.preprocess((v) => {
+      if (typeof v !== 'string') return 'normale';
+      const m: Record<string, string> = {
+        doux: 'douce', douce: 'douce', faible: 'douce', bas: 'douce',
+        normal: 'normale', normale: 'normale', moyen: 'normale',
+        fort: 'sensible', forte: 'sensible', sensible: 'sensible',
+        'élevé': 'sensible', 'élevée': 'sensible', haut: 'sensible',
+      };
+      return m[v.toLowerCase().trim()] ?? 'normale';
+    }, z.enum(['douce', 'normale', 'sensible']).default('normale')),
+    // AI may return "oui"/"non" or a string instead of a boolean
+    acouphenes: z.preprocess((v) => {
+      if (typeof v === 'boolean') return v;
+      if (typeof v === 'string') return ['oui', 'yes', 'true', '1'].includes(v.toLowerCase().trim());
+      if (typeof v === 'number') return v !== 0;
+      return false;
+    }, z.boolean().default(false)),
     langue: z.enum(['fr', 'es', 'en']).default('fr'),
     conversation_history: z.array(z.any()).default([]),
   }),
@@ -31,6 +57,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
+    console.error('[onboarding/complete] Zod validation failed:', JSON.stringify(parsed.error.flatten(), null, 2));
     return apiError('Invalid profile data', 'VALIDATION_ERROR', 400);
   }
 
@@ -39,7 +66,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   // Sauvegarder le profil
-  const { error: saveError } = await supabase.from('profils').upsert({
+  const upsertPayload = {
     user_id: userId,
     prenom_proche: profil.prenom_proche ?? null,
     annee_naissance: profil.annee_naissance as number,
@@ -52,14 +79,24 @@ export async function POST(req: NextRequest) {
     chanson_madeleine: profil.chanson_madeleine ?? null,
     sensibilite_volume: profil.sensibilite_volume ?? 'normale',
     acouphenes: profil.acouphenes ?? false,
+    // Defaults for audio columns — user can change them later in /app/parametres
+    gamma_gain: 0.04,
+    gamma_mode: (profil.acouphenes ? 'am' : 'binaural') as 'binaural' | 'monaural' | 'am',
+    routine_prioritaire: 'matin' as const,
     langue: profil.langue ?? 'fr',
     conversation_history: (profil.conversation_history ?? []) as Json,
     onboarding_complet: true,
     updated_at: new Date().toISOString(),
-  });
+  };
+
+  const { error: saveError } = await supabase.from('profils').upsert(upsertPayload);
 
   if (saveError) {
-    return apiError('Failed to save profile', 'DB_ERROR', 500);
+    console.error('[onboarding/complete] DB upsert error:', saveError);
+    return NextResponse.json(
+      { error: 'Failed to save profile', code: 'DB_ERROR', detail: saveError.message },
+      { status: 500 }
+    );
   }
 
   // Créer l'abonnement trial

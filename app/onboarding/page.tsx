@@ -26,7 +26,8 @@ interface ProfileData {
   langue: 'fr';
 }
 
-const ANNEES = Array.from({ length: 80 }, (_, i) => (1930 + i).toString()).reverse();
+// 1920–2010 covers the realistic range for the app's use case
+const ANNEES = Array.from({ length: 91 }, (_, i) => (1920 + i).toString()).reverse();
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -125,10 +126,20 @@ export default function OnboardingPage() {
       if (res.ok) {
         router.push('/decouverte');
       } else {
-        throw new Error('Completion failed');
+        // Read the error body so we can surface the real cause
+        const errBody = await res.json().catch(() => ({})) as { error?: string; code?: string; detail?: string };
+        console.error('[onboarding/complete] HTTP', res.status, errBody);
+        const detail = errBody.detail ?? errBody.error ?? `HTTP ${res.status}`;
+        toast({
+          title: 'Erreur de sauvegarde',
+          description: `Impossible de créer le profil (${detail}). Réessayez ou contactez le support.`,
+          variant: 'destructive',
+        });
+        setPhase('summary');
       }
-    } catch {
-      toast({ title: 'Erreur', description: 'Impossible de sauvegarder le profil', variant: 'destructive' });
+    } catch (err) {
+      console.error('[onboarding/complete] fetch error:', err);
+      toast({ title: 'Erreur réseau', description: 'Vérifiez votre connexion et réessayez.', variant: 'destructive' });
       setPhase('summary');
     }
   }
