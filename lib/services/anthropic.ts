@@ -147,6 +147,15 @@ export async function generateMusicDiscovery(params: {
     limit = 30,
   } = params;
 
+  console.log('[generateMusicDiscovery] Called with:', {
+    period: `${bump_annee_debut}–${bump_annee_fin}`,
+    pays: pays_jeunesse,
+    genres: genres_preferes,
+    passions,
+    limit,
+    excludeCount: exclude_artiste_titre.length,
+  });
+
   const genresStr = genres_preferes.length > 0 ? genres_preferes.join(', ') : 'variété, chanson populaire';
   const passionsStr = passions.length > 0 ? passions.join(', ') : 'musique';
   const excludeNote =
@@ -182,6 +191,7 @@ PHASES DE JOURNÉE (énergie du titre) :
 Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
 [{"titre":"...","artiste":"...","annee":1978,"phase_recommandee":"matin"},...]`;
 
+  console.log('[generateMusicDiscovery] Calling Claude claude-sonnet-4-6, limit:', limit);
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 4000,
@@ -189,8 +199,12 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
   });
 
   const text = response.content[0].type === 'text' ? response.content[0].text : '[]';
+  console.log('[generateMusicDiscovery] Raw response length:', text.length, 'chars. First 200:', text.slice(0, 200));
   const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
+  if (!jsonMatch) {
+    console.error('[generateMusicDiscovery] No JSON array found in response!');
+    return [];
+  }
 
   try {
     const parsed = JSON.parse(jsonMatch[0]) as Array<{
@@ -202,7 +216,7 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
 
     const VALID_PHASES: PhaseRecommandee[] = ['matin', 'soins', 'repas', 'apres-midi', 'coucher'];
 
-    return parsed
+    const result = parsed
       .filter((t) => t.titre && t.artiste && t.annee)
       .map((t) => ({
         titre: String(t.titre),
@@ -213,7 +227,11 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
           : 'apres-midi',
       }))
       .slice(0, limit);
-  } catch {
+
+    console.log(`[generateMusicDiscovery] Parsed ${result.length} valid titles out of ${parsed.length} raw entries`);
+    return result;
+  } catch (parseErr) {
+    console.error('[generateMusicDiscovery] JSON.parse failed:', parseErr);
     return [];
   }
 }

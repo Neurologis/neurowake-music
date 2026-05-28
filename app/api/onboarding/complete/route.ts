@@ -142,8 +142,20 @@ export async function POST(req: NextRequest) {
     }));
 
     if (inserts.length > 0) {
-      await admin.from('titres_recommandes').insert(inserts);
-      titresRecommandes = inserts;
+      const { error: insertErr } = await admin.from('titres_recommandes').insert(inserts);
+      if (insertErr) {
+        console.error('[onboarding/complete] Insert error:', insertErr.code, insertErr.message);
+        if (insertErr.code === '42703') {
+          // phase_recommandee column doesn't exist yet — retry without it
+          console.warn('[onboarding/complete] Column phase_recommandee missing, retrying without it. Run the SQL migration to enable phase badges.');
+          const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
+          const { error: e2 } = await admin.from('titres_recommandes').insert(insertsWithoutPhase);
+          if (e2) console.error('[onboarding/complete] Retry insert error:', e2.code, e2.message);
+          else titresRecommandes = inserts;
+        }
+      } else {
+        titresRecommandes = inserts;
+      }
     }
   } catch (err) {
     console.error('[onboarding/complete] AI discovery error:', err);

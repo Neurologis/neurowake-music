@@ -60,14 +60,33 @@ export async function POST(req: NextRequest) {
     statut: 'propose' as const,
   }));
 
-  const { data: inserted, error: insertError } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let inserted: any[] | null = null;
+  const { data: d1, error: insertError } = await admin
     .from('titres_recommandes')
     .insert(inserts)
     .select();
 
   if (insertError) {
-    console.error('[decouverte/plus] insert error:', insertError);
-    return apiError('Failed to save new titles', 'DB_ERROR', 500);
+    console.error('[decouverte/plus] insert error:', insertError.code, insertError.message);
+    if (insertError.code === '42703') {
+      // phase_recommandee column doesn't exist yet — retry without it
+      console.warn('[decouverte/plus] Column phase_recommandee missing, retrying without it. Run the SQL migration to enable phase badges.');
+      const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
+      const { data: d2, error: e2 } = await admin
+        .from('titres_recommandes')
+        .insert(insertsWithoutPhase)
+        .select();
+      if (e2) {
+        console.error('[decouverte/plus] retry insert error:', e2.code, e2.message);
+        return apiError('Failed to save new titles', 'DB_ERROR', 500);
+      }
+      inserted = d2 ?? null;
+    } else {
+      return apiError('Failed to save new titles', 'DB_ERROR', 500);
+    }
+  } else {
+    inserted = d1 ?? null;
   }
 
   return NextResponse.json({ titres: inserted ?? [] });
