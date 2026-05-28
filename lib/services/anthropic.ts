@@ -12,22 +12,68 @@ RÈGLES ABSOLUES :
 - Ne mentionne jamais les fréquences ou la technologie
 - Parle du "proche" ou utilise son prénom s'il est connu
 
-TES OBJECTIFS (obtenir ces informations progressivement) :
+TES OBJECTIFS (obtenir ces informations dans cet ordre) :
 1. Genres musicaux préférés dans sa jeunesse (variété française, rock, jazz, flamenco, etc.)
 2. Chanteurs ou groupes favoris
 3. Une chanson qui lui tient particulièrement à cœur ("chanson madeleine")
 4. Ses passions / activités favorites (danse, sport, cuisine, nature...)
-5. Sa sensibilité au volume (doux / normal / fort)
-6. S'il a des problèmes d'audition (acouphènes) — formuler avec tact
+5. Sa sensibilité au volume (doux / normal / fort) — propose trois options claires
+6. S'il a une sensibilité auditive particulière (acouphènes) — formule avec tact, question fermée oui/non
 
-SORTIE FINALE :
-Quand tu as suffisamment d'informations (minimum : genres + une passion + sensibilité volume),
-réponds avec ce JSON exact sur une ligne, sans texte autour :
+RÈGLE DE SORTIE — CRITIQUE — RESPECTE-LA ABSOLUMENT :
+Dès que tu as reçu une réponse à la question sur la sensibilité auditive (objectif 6),
+tu DOIS immédiatement terminer la conversation en répondant UNIQUEMENT avec ce JSON compact sur une seule ligne.
+N'ajoute AUCUN texte avant, AUCUN texte après, AUCUN remerciement, AUCUN bloc de code markdown.
+Uniquement le JSON brut, rien d'autre :
 {"isComplete":true,"data":{"genres_preferes":[],"chanson_madeleine":"","passions":[],"sensibilite_volume":"normale","acouphenes":false}}
 
-Tant que tu n'as pas ces infos, réponds normalement avec tes questions.`;
+Remplis les tableaux et valeurs avec les informations collectées pendant la conversation.
+sensibilite_volume doit être "douce", "normale" ou "sensible". acouphenes est un booléen.
+Tant que tu n'as pas encore reçu de réponse à l'objectif 6, continue la conversation normalement.`;
 
 type Message = { role: 'user' | 'assistant'; content: string };
+
+/**
+ * Extracts the completion data object from Claude's response text.
+ *
+ * Uses brace-counting rather than regex so it handles:
+ *   - Spaces around colons  ("isComplete" : true)
+ *   - Multi-line / pretty-printed JSON
+ *   - JSON wrapped in markdown code fences
+ *   - Arbitrary text before or after the JSON
+ *
+ * Returns null if no valid completion JSON is found.
+ */
+function extractCompletionData(text: string): Record<string, unknown> | null {
+  // Find "isComplete":true anywhere in the text (tolerates whitespace around :)
+  const markerMatch = text.match(/"isComplete"\s*:\s*true/);
+  if (!markerMatch || markerMatch.index === undefined) return null;
+
+  // Walk backwards from the marker to locate the opening {
+  let startIdx = markerMatch.index - 1;
+  while (startIdx >= 0 && text[startIdx] !== '{') startIdx--;
+  if (startIdx < 0) return null;
+
+  // Walk forwards counting braces until depth reaches 0 (matching closing })
+  let depth = 0;
+  for (let i = startIdx; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(text.substring(startIdx, i + 1)) as Record<string, unknown>;
+          if (parsed.isComplete === true && parsed.data && typeof parsed.data === 'object') {
+            return parsed.data as Record<string, unknown>;
+          }
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
 
 export async function sendOnboardingMessage(
   history: Message[],
@@ -52,15 +98,14 @@ export async function sendOnboardingMessage(
   const text =
     response.content[0].type === 'text' ? response.content[0].text : '';
 
-  // Detect JSON completion signal
-  const jsonMatch = text.match(/\{"isComplete":true.*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return { response: text, isComplete: true, data: parsed.data };
-    } catch {
-      // Fall through to normal response
-    }
+  // Robust completion detection — handles:
+  //   • spaces around colon:   "isComplete" : true
+  //   • pretty-printed JSON    (multi-line)
+  //   • JSON wrapped in ```    markdown fences
+  //   • arbitrary text before/after the JSON object
+  const completionData = extractCompletionData(text);
+  if (completionData) {
+    return { response: text, isComplete: true, data: completionData };
   }
 
   return { response: text, isComplete: false };

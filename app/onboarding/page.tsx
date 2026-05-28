@@ -233,17 +233,29 @@ export default function OnboardingPage() {
               )}
               <div ref={messagesEndRef} />
             </div>
-            <div className="border-t bg-white p-4 flex gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                placeholder="Votre réponse..."
-                disabled={isTyping}
-              />
-              <Button onClick={sendMessage} disabled={isTyping || !input.trim()} size="icon">
-                <Send className="h-4 w-4" />
-              </Button>
+            <div className="border-t bg-white p-4 space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder="Votre réponse..."
+                  disabled={isTyping}
+                />
+                <Button onClick={sendMessage} disabled={isTyping || !input.trim()} size="icon">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* Safety-net button: shown after 8+ messages so the user can
+                  always proceed even if the automatic JSON trigger fails */}
+              {messages.length >= 8 && !isTyping && (
+                <button
+                  onClick={() => setPhase('summary')}
+                  className="w-full text-xs text-[#4A6FA5] underline text-center py-1 hover:opacity-70 transition-opacity"
+                >
+                  J&apos;ai tout dit → Passer à la validation du profil
+                </button>
+              )}
             </div>
           </div>
         )}
