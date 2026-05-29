@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
-import { createServerClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { generateItunesLink, generateAmazonLink } from '@/lib/services/music-metadata';
 import { generateMusicDiscovery, type TitreDecouvert } from '@/lib/services/anthropic';
 
@@ -50,6 +50,18 @@ async function safeInsertTitres(
       if (e2) console.error('[decouverte/titres] Retry insert error:', e2.code, e2.message);
       return d2 ?? null;
     }
+
+    // For unique-constraint violations (user already has these titles), try to read existing rows
+    if (error.code === '23505') {
+      console.warn('[decouverte/titres] Unique constraint — rows already exist, reading them back...');
+      const { data: existing } = await admin
+        .from('titres_recommandes')
+        .select('*')
+        .eq('user_id', inserts[0]?.user_id)
+        .order('created_at', { ascending: true });
+      return existing ?? null;
+    }
+
     return null;
   }
 
@@ -60,11 +72,15 @@ export async function GET(req: NextRequest) {
   const { userId, error } = await requireAuth(req);
   if (error) return error;
 
-  const supabase = createServerClient();
+  // Log API key presence at request time (helps diagnose missing env vars in production)
+  console.log('[decouverte/titres] ANTHROPIC_API_KEY present:', !!process.env.ANTHROPIC_API_KEY);
+
+  // Use admin client for all reads — avoids silent RLS failures that return 0 rows
+  // without an error when the RLS policy is missing or misconfigured.
   const admin = createAdminClient();
 
   // ── 1. Read existing titles from DB ────────────────────────────────────────
-  const { data: titres, error: dbError } = await supabase
+  const { data: titres, error: dbError } = await admin
     .from('titres_recommandes')
     .select('*')
     .eq('user_id', userId)
@@ -84,41 +100,48 @@ export async function GET(req: NextRequest) {
   if (finalTitres.length === 0) {
     console.log('[decouverte/titres] No titles — fetching profile to auto-generate...');
 
-    const { data: profil, error: profErr } = await supabase
+    const { data: profil, error: profErr } = await admin
       .from('profils')
       .select('annee_naissance, bump_annee_debut, bump_annee_fin, genres_preferes, passions, pays_jeunesse, chanson_madeleine')
       .eq('user_id', userId)
       .single();
 
     if (profErr || !profil) {
-      console.warn('[decouverte/titres] Profile not found or error:', profErr?.message);
+      console.warn('[decouverte/titres] Profile not found or error:', profErr?.message ?? 'no profile row');
+      console.warn('[decouverte/titres] user_id searched:', userId);
       return NextResponse.json({ titres: [] });
     }
 
-    console.log('[decouverte/titres] Profile:', {
-      period: `${profil.bump_annee_debut}–${profil.bump_annee_fin}`,
+    // Null-safe bump years — compute from birth year if columns are missing
+    const bumpDebut = profil.bump_annee_debut ?? (profil.annee_naissance + 10);
+    const bumpFin   = profil.bump_annee_fin   ?? (profil.annee_naissance + 25);
+
+    console.log('[decouverte/titres] Profile found:', {
+      annee_naissance: profil.annee_naissance,
+      period: `${bumpDebut}–${bumpFin}`,
       pays: profil.pays_jeunesse,
       genres: profil.genres_preferes,
       passions: profil.passions,
+      chanson_madeleine: profil.chanson_madeleine,
     });
 
     try {
-      // Race AI generation against a 35-second timeout.
+      // Race AI generation against a 50-second timeout.
+      // Claude on a cold start can take 40-55 s.
       // This ensures the HTTP response is always sent before the infrastructure
-      // (Vercel / browser) kills the connection, which would make fetch() throw
-      // on the client and leave the loading spinner stuck forever.
+      // (Vercel / browser) kills the connection.
       const titresIA = await withTimeout<TitreDecouvert>(
         generateMusicDiscovery({
           annee_naissance: profil.annee_naissance,
-          bump_annee_debut: profil.bump_annee_debut,
-          bump_annee_fin: profil.bump_annee_fin,
+          bump_annee_debut: bumpDebut,
+          bump_annee_fin: bumpFin,
           genres_preferes: profil.genres_preferes ?? [],
           passions: profil.passions ?? [],
-          pays_jeunesse: profil.pays_jeunesse,
+          pays_jeunesse: profil.pays_jeunesse ?? 'France',
           chanson_madeleine: profil.chanson_madeleine,
           limit: 30,
         }),
-        35_000,
+        50_000,
         'decouverte/titres'
       );
 
@@ -137,11 +160,25 @@ export async function GET(req: NextRequest) {
         }));
 
         const inserted = await safeInsertTitres(admin, inserts);
-        if (inserted) {
+        if (inserted && inserted.length > 0) {
           finalTitres = inserted;
           console.log(`[decouverte/titres] Inserted ${inserted.length} titles into DB`);
         } else {
-          console.error('[decouverte/titres] Insert returned null — titles will not be persisted');
+          // Insert failed — still serve the AI-generated titles so the user sees content.
+          // Next page load will try DB again and re-generate if still empty.
+          console.error('[decouverte/titres] Insert returned null or empty — serving AI titles in memory');
+          finalTitres = titresIA.map((t) => ({
+            id: `mem-${Math.random().toString(36).slice(2, 10)}`,
+            user_id: userId,
+            titre: t.titre,
+            artiste: t.artiste,
+            annee: t.annee,
+            pochette_url: null,
+            musicbrainz_id: null,
+            phase_recommandee: t.phase_recommandee,
+            statut: 'propose' as const,
+            created_at: new Date().toISOString(),
+          }));
         }
       } else {
         console.warn('[decouverte/titres] AI returned 0 titles — check profile data and Claude API key');
