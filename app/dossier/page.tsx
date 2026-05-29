@@ -5,28 +5,27 @@
  * Mandatory transition page between onboarding and découverte.
  * Flow: onboarding → /dossier → /decouverte → /app
  *
- * Behaviour:
- *  - On mount: check IndexedDB (hasMusicFolder)
- *    → if folder already exists, redirect straight to /decouverte
- *    → otherwise show setup UI
+ * Desktop Chrome/Edge (FSA available):
+ *   - Shows explanatory block BEFORE the picker opens
+ *   - User clicks "J'autorise" → OS folder picker opens
+ *   - App creates "NeuroWake Music" subfolder automatically
+ *   - Success: shows exact parent folder name + confirmation
  *
- *  - If File System Access API available (Chrome ≥86, Edge ≥86, Chrome Android):
- *      → ONLY the auto-create button (no manual instructions)
- *      → showDirectoryPicker() → getDirectoryHandle('NeuroWake Music', {create:true})
- *      → save handle to IndexedDB
- *      → show success then "Continuer →"
+ * Mobile / Safari / Firefox (no FSA):
+ *   - Shows a single plain-language instruction
+ *   - "Continuer" button after manual creation
  *
- *  - If FSA NOT available (Safari, Firefox, iOS):
- *      → ONLY manual instructions for the detected OS (no auto button)
- *      → "J'ai créé le dossier → Continuer"
- *
- * Never mix the two modes on the same page.
+ * Rules:
+ *   - Never show auto button AND manual instructions at the same time
+ *   - Never show the picker without prior explanation
  */
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as localStore from '@/lib/local-audio-store';
-import { FolderOpen, CheckCircle2, Loader2, AlertCircle, ChevronRight } from 'lucide-react';
+import {
+  FolderOpen, CheckCircle2, Loader2, AlertCircle, ChevronRight, Info,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type State = 'checking' | 'setup' | 'creating' | 'done' | 'error';
@@ -46,16 +45,16 @@ export default function DossierPage() {
   const [state, setState] = useState<State>('checking');
   const [errorMsg, setErrorMsg] = useState('');
   const [platform, setPlatform] = useState<Platform>('other');
+  // Parent folder name chosen by the user — shown in the success message
+  const [parentFolderName, setParentFolderName] = useState<string | null>(null);
 
-  // canUsePicker is evaluated client-side only (safe: supportsDirectoryPicker checks typeof window)
+  // Safe to call at render time: supportsDirectoryPicker checks typeof window
   const canUsePicker = localStore.supportsDirectoryPicker();
 
   useEffect(() => {
     setPlatform(detectPlatform());
-
     localStore.hasMusicFolder().then((has) => {
       if (has) {
-        // Folder already configured — skip straight to selection
         router.replace('/decouverte');
       } else {
         setState('setup');
@@ -69,14 +68,16 @@ export default function DossierPage() {
     try {
       const handle = await localStore.setupMusicFolder();
       if (handle) {
+        // Retrieve the parent folder name that was stored during creation
+        const parentName = await localStore.getMusicFolderParentName();
+        setParentFolderName(parentName);
         setState('done');
       } else {
-        // User cancelled the picker without selecting — back to setup
+        // null = user cancelled the picker → silently go back to setup
         setState('setup');
       }
     } catch (err) {
       const msg = (err as Error)?.message ?? '';
-      // AbortError = user pressed Cancel in the OS picker — treat as cancellation, not an error
       if (msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
         setState('setup');
       } else {
@@ -86,7 +87,7 @@ export default function DossierPage() {
     }
   }
 
-  // ── Checking (IndexedDB query in progress) ────────────────────────────────
+  // ── Checking ──────────────────────────────────────────────────────────────
   if (state === 'checking') {
     return (
       <div className="min-h-screen bg-[#F7F5F0] flex items-center justify-center">
@@ -95,17 +96,20 @@ export default function DossierPage() {
     );
   }
 
-  // ── Creating (picker open, waiting for OS response) ───────────────────────
+  // ── Creating (picker is open — OS window is on screen) ────────────────────
   if (state === 'creating') {
     return (
       <div className="min-h-screen bg-[#F7F5F0] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center gap-5 text-center">
           <Loader2 className="h-12 w-12 animate-spin text-[#4A6FA5]" />
-          <p className="font-semibold text-[#2C2C2A] text-lg">Création du dossier en cours…</p>
-          <p className="text-sm text-muted-foreground">
-            Choisissez un emplacement dans la fenêtre qui vient de s&apos;ouvrir,<br />
-            puis validez. Le dossier <strong>NeuroWake Music</strong> sera créé automatiquement à l&apos;intérieur.
-          </p>
+          <p className="font-bold text-[#2C2C2A] text-lg">La fenêtre est ouverte sur votre écran</p>
+          <div className="text-sm text-gray-600 leading-relaxed text-left w-full bg-gray-50 rounded-lg p-4 space-y-1">
+            <p>1. Naviguez jusqu&apos;au dossier <strong>Musique</strong> (ou Documents)</p>
+            <p>2. Cliquez sur <strong>Sélectionner</strong> (ou Ouvrir)</p>
+            <p className="text-[#7BA05B] font-medium pt-1">
+              ✅ L&apos;app créera automatiquement le dossier NeuroWake Music à l&apos;intérieur
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -113,8 +117,9 @@ export default function DossierPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] flex flex-col items-center justify-center p-4">
+
       {/* Breadcrumb */}
-      <div className="w-full max-w-md mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="w-full max-w-md mb-4 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
         <span className="text-[#7BA05B] font-medium">✓ Profil</span>
         <ChevronRight className="h-3 w-3" />
         <span className="font-semibold text-[#2C2C2A]">Dossier musical</span>
@@ -125,6 +130,7 @@ export default function DossierPage() {
       </div>
 
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
+
         {/* Header */}
         <div className="bg-[#4A6FA5] px-6 py-5">
           <h1 className="text-white font-bold text-xl">Dossier NeuroWake Music</h1>
@@ -135,17 +141,25 @@ export default function DossierPage() {
 
         <div className="px-6 py-6 space-y-5">
 
-          {/* ── SUCCESS ────────────────────────────────────────────────────── */}
+          {/* ── SUCCESS ──────────────────────────────────────────────────────── */}
           {state === 'done' && (
             <div className="flex flex-col items-center py-4 gap-4 text-center">
               <CheckCircle2 className="h-14 w-14 text-[#7BA05B]" />
-              <p className="font-semibold text-[#2C2C2A] text-lg">
-                ✅ Dossier <strong>NeuroWake Music</strong> créé avec succès sur votre appareil.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Après la sélection des titres, déposez-y vos fichiers audio (MP3, M4A, FLAC…)
-                pour les associer à votre bibliothèque.
-              </p>
+              <div className="space-y-2">
+                <p className="font-bold text-[#2C2C2A] text-lg">
+                  ✅ Parfait !
+                </p>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  Votre dossier <strong>NeuroWake Music</strong> a été créé
+                  {parentFolderName
+                    ? <> dans <strong>{parentFolderName}</strong></>
+                    : <> sur votre appareil</>
+                  }.
+                </p>
+                <p className="text-gray-600 text-sm">
+                  Placez-y vos fichiers musicaux (MP3, M4A, FLAC…) après la sélection des titres.
+                </p>
+              </div>
               <Button
                 onClick={() => router.push('/decouverte')}
                 className="w-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white mt-2"
@@ -175,28 +189,40 @@ export default function DossierPage() {
             </div>
           )}
 
-          {/* ── SETUP — FSA AVAILABLE: auto button ONLY ────────────────────── */}
+          {/* ── SETUP — FSA DISPONIBLE : bouton auto UNIQUEMENT ───────────── */}
           {state === 'setup' && canUsePicker && (
-            <div className="space-y-4">
-              <p className="text-gray-700 text-sm leading-relaxed">
-                NeuroWake Music lit vos fichiers audio directement depuis votre appareil —
-                aucun fichier n&apos;est jamais envoyé sur Internet.
-              </p>
-              <p className="text-gray-700 text-sm leading-relaxed">
-                Cliquez sur le bouton ci-dessous pour choisir un emplacement.
-                Le dossier <strong>NeuroWake Music</strong> sera créé automatiquement
-                à l&apos;intérieur.
-              </p>
+            <div className="space-y-5">
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-800">
-                <strong>Emplacement conseillé :</strong>{' '}
-                {platform === 'android'
-                  ? <>Téléchargements / <code className="font-mono font-bold">NeuroWake Music</code></>
-                  : <>Musique / <code className="font-mono font-bold">NeuroWake Music</code></>
-                }
+              {/* Bloc explicatif — écrit pour des non-informaticiens */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 font-semibold text-blue-900">
+                  <Info className="h-4 w-4 flex-shrink-0" />
+                  📁 Comment ça va se passer :
+                </div>
+                <p className="text-sm text-blue-800 leading-relaxed">
+                  Quand vous cliquerez sur le bouton ci-dessous, <strong>une fenêtre va s&apos;ouvrir
+                  sur votre écran</strong>.
+                </p>
+                <p className="text-sm text-blue-800 font-semibold">Dans cette fenêtre :</p>
+                <ol className="text-sm text-blue-800 space-y-1 pl-1">
+                  <li>1. Naviguez jusqu&apos;au dossier <strong>Musique</strong> (ou Documents) de votre ordinateur</li>
+                  <li>2. Cliquez sur <strong>Sélectionner</strong> (ou Ouvrir)</li>
+                  <li>
+                    3. C&apos;est tout !{' '}
+                    L&apos;application créera automatiquement le dossier{' '}
+                    <strong>NeuroWake Music</strong> à l&apos;intérieur, sans que vous ayez
+                    à faire quoi que ce soit d&apos;autre.
+                  </li>
+                </ol>
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
+                  <span className="text-amber-700 text-sm">
+                    ⚠️ <strong>Important :</strong> ne créez pas vous-même le dossier —
+                    laissez l&apos;application le faire pour vous.
+                  </span>
+                </div>
               </div>
 
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 text-center">
                 🔒 L&apos;app ne lit que ce dossier — aucun fichier n&apos;est envoyé sur Internet.
               </p>
 
@@ -211,73 +237,63 @@ export default function DossierPage() {
             </div>
           )}
 
-          {/* ── SETUP — FSA NOT AVAILABLE: manual instructions ONLY ────────── */}
+          {/* ── SETUP — PAS DE FSA : instructions manuelles UNIQUEMENT ──────── */}
           {state === 'setup' && !canUsePicker && (
-            <div className="space-y-4">
-              <p className="text-gray-700 text-sm leading-relaxed">
-                Créez manuellement le dossier{' '}
-                <strong>NeuroWake Music</strong> sur votre appareil,
-                puis revenez ici pour continuer.
-              </p>
+            <div className="space-y-5">
 
-              {/* iOS */}
-              {platform === 'ios' && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="px-4 py-3 font-semibold text-sm text-gray-800 bg-gray-50">
-                    📱 iPhone / iPad (iOS)
+              {/* Message unique, langage simple, adapté mobile */}
+              {(platform === 'ios' || platform === 'android') ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 font-semibold text-blue-900 mb-3">
+                    <Info className="h-4 w-4 flex-shrink-0" />
+                    📱 Créer le dossier sur votre téléphone
                   </div>
-                  <ol className="px-4 py-3 space-y-2 text-sm text-gray-700 list-none">
-                    <li>1. Ouvrez l&apos;app <strong>Fichiers</strong></li>
-                    <li>2. Touchez <strong>Sur mon iPhone</strong> (ou Sur mon iPad)</li>
-                    <li>3. Appuyez longuement → <strong>Nouveau dossier</strong></li>
-                    <li>4. Nommez-le exactement :{' '}
-                      <code className="font-mono bg-gray-100 px-1 rounded">NeuroWake Music</code>
-                    </li>
-                    <li>5. Revenez ici une fois le dossier créé</li>
-                  </ol>
+                  <p className="text-sm text-blue-800 leading-relaxed">
+                    Sur votre téléphone, créez un dossier nommé exactement{' '}
+                    <code className="font-mono font-bold bg-white border border-blue-200 px-1 rounded">
+                      NeuroWake Music
+                    </code>{' '}
+                    dans votre application <strong>Fichiers</strong> ou <strong>Mes fichiers</strong>,
+                    dans le dossier <strong>Musique</strong> ou <strong>Téléchargements</strong>.
+                  </p>
+                  <p className="text-sm text-blue-800 mt-3">
+                    Une fois créé, revenez ici et cliquez sur <strong>Continuer</strong>.
+                  </p>
                 </div>
-              )}
-
-              {/* Android sans FSA */}
-              {platform === 'android' && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="px-4 py-3 font-semibold text-sm text-gray-800 bg-gray-50">
-                    🤖 Android
+              ) : (
+                /* Desktop sans FSA (Firefox, etc.) */
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 font-semibold text-blue-900 mb-3">
+                    <Info className="h-4 w-4 flex-shrink-0" />
+                    🖥️ Créer le dossier sur votre ordinateur
                   </div>
-                  <ol className="px-4 py-3 space-y-2 text-sm text-gray-700 list-none">
-                    <li>1. Ouvrez le <strong>Gestionnaire de fichiers</strong></li>
-                    <li>2. Allez dans <strong>Téléchargements</strong></li>
-                    <li>3. Créez un dossier :{' '}
-                      <code className="font-mono bg-gray-100 px-1 rounded">NeuroWake Music</code>
-                    </li>
-                    <li>4. Revenez ici une fois le dossier créé</li>
-                  </ol>
-                </div>
-              )}
-
-              {/* Desktop (Firefox) ou autre */}
-              {(platform === 'desktop' || platform === 'other') && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="px-4 py-3 font-semibold text-sm text-gray-800 bg-gray-50">
-                    🖥️ Windows / Mac
-                  </div>
-                  <ol className="px-4 py-3 space-y-2 text-sm text-gray-700 list-none">
-                    <li>
+                  <p className="text-sm text-blue-800 leading-relaxed mb-3">
+                    Votre navigateur ne permet pas la création automatique. Créez ce dossier
+                    manuellement :
+                  </p>
+                  <div className="space-y-2 text-sm text-blue-800">
+                    <p>
                       Windows :{' '}
-                      <code className="font-mono bg-gray-100 px-1 rounded text-xs">
+                      <code className="font-mono bg-white border border-blue-200 px-1 rounded text-xs">
                         Documents\NeuroWake Music
                       </code>
-                    </li>
-                    <li>
+                    </p>
+                    <p>
                       Mac :{' '}
-                      <code className="font-mono bg-gray-100 px-1 rounded text-xs">
+                      <code className="font-mono bg-white border border-blue-200 px-1 rounded text-xs">
                         ~/Musique/NeuroWake Music
                       </code>
-                    </li>
-                    <li>Créez ce dossier dans l&apos;Explorateur ou le Finder.</li>
-                  </ol>
+                    </p>
+                  </div>
+                  <p className="text-sm text-blue-800 mt-3">
+                    Une fois créé, revenez ici et cliquez sur <strong>Continuer</strong>.
+                  </p>
                 </div>
               )}
+
+              <p className="text-xs text-gray-400 text-center">
+                🔒 L&apos;app ne lit que ce dossier — aucun fichier n&apos;est envoyé sur Internet.
+              </p>
 
               <Button
                 onClick={() => router.push('/decouverte')}

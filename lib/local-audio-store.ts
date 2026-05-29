@@ -401,12 +401,23 @@ export async function setupMusicFolder(): Promise<FileSystemDirectoryHandle | nu
     // Create "NeuroWake Music" subfolder — no-op if it already exists.
     const nwHandle = await parentHandle.getDirectoryHandle('NeuroWake Music', { create: true });
     await _idbPut(STORE_DIR, 'musicFolder', nwHandle);
+    // Also persist the parent folder name so the UI can display the full path hint.
+    await _idbPut(STORE_DIR, 'musicFolderParentName', parentHandle.name);
     return nwHandle;
   } catch (err: unknown) {
     if ((err as { name?: string })?.name === 'AbortError') return null; // user cancelled
     console.warn('[LocalAudioStore] setupMusicFolder error:', (err as Error)?.message);
     return null;
   }
+}
+
+/**
+ * Return the name of the parent folder the user chose when calling setupMusicFolder().
+ * e.g. "Musique", "Music", "Downloads".
+ * Returns null if never set (manual-folder flow or folder not yet configured).
+ */
+export async function getMusicFolderParentName(): Promise<string | null> {
+  return (await _idbGet<string>(STORE_DIR, 'musicFolderParentName')) ?? null;
 }
 
 /**
