@@ -25,7 +25,7 @@ import { FolderOpen, CheckCircle2, X, Smartphone, Monitor } from 'lucide-react';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Platform = 'desktop' | 'android' | 'ios' | 'other';
-type Step = 'idle' | 'creating' | 'done' | 'error' | 'manual';
+type Step = 'idle' | 'creating' | 'done' | 'error';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -156,6 +156,7 @@ export default function PwaFolderSetup() {
           )}
 
           {/* ── Création automatique (Chrome / Edge / Android Chrome) ──── */}
+          {/* ONLY shown when FSA is available — never mixed with manual instructions */}
           {(step === 'idle' || step === 'creating') && canUsePicker && (
             <div className="space-y-4">
               <p className="text-gray-700 text-sm leading-relaxed">
@@ -167,14 +168,11 @@ export default function PwaFolderSetup() {
                 Le dossier <strong>NeuroWake Music</strong> sera créé automatiquement à l&apos;intérieur.
               </p>
 
-              {/* Chemin suggéré selon la plateforme */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-800">
                 {platform === 'android' ? (
                   <>Recommandé : <code className="font-mono font-bold">Téléchargements / NeuroWake Music</code></>
-                ) : platform === 'desktop' ? (
-                  <>Recommandé : <code className="font-mono font-bold">Musique / NeuroWake Music</code></>
                 ) : (
-                  <>Sélectionnez un dossier, puis confirmez la création.</>
+                  <>Recommandé : <code className="font-mono font-bold">Musique / NeuroWake Music</code></>
                 )}
               </div>
 
@@ -203,19 +201,12 @@ export default function PwaFolderSetup() {
                   </>
                 )}
               </button>
-
-              {/* Lien vers instructions manuelles */}
-              <button
-                onClick={() => setStep('manual')}
-                className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Créer le dossier manuellement →
-              </button>
             </div>
           )}
 
-          {/* ── Instructions manuelles (iOS / Firefox / manuel) ─────────── */}
-          {((!canUsePicker && step !== 'done') || step === 'manual') && (
+          {/* ── Instructions manuelles (iOS / Firefox / pas de FSA) ──────── */}
+          {/* ONLY shown when FSA is NOT available — never mixed with auto button */}
+          {!canUsePicker && step !== 'done' && (
             <div className="space-y-4">
               <p className="text-gray-700 text-sm leading-relaxed">
                 Votre navigateur ne supporte pas la création automatique de dossier.

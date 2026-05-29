@@ -256,7 +256,7 @@ export default function OnboardingPage() {
       });
 
       if (res.ok) {
-        router.push('/decouverte');
+        router.push('/dossier');
       } else {
         // Read the error body so we can surface the real cause
         const errBody = await res.json().catch(() => ({})) as { error?: string; code?: string; detail?: string };

@@ -115,6 +115,51 @@ export default function DecouvertePage() {
     });
   }
 
+  /**
+   * Add a title found via iTunes search directly to the user's validated list.
+   * Persists to titres_recommandes with statut='valide' via /api/decouverte/ajouter.
+   */
+  async function ajouterDepuisRecherche(t: Titre) {
+    // Optimistic update — use a temp id until the DB returns the real one
+    const tempId = `search-${t.id}-${Date.now()}`;
+    const optimistic: Titre = { ...t, id: tempId, statut: 'valide' };
+    setAllTitres((prev) => [...prev, optimistic]);
+
+    try {
+      const res = await fetch('/api/decouverte/ajouter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titre: t.titre,
+          artiste: t.artiste,
+          annee: t.annee,
+          pochette_url: t.pochette_url,
+          itunes_url: t.itunes_url,
+        }),
+      });
+
+      if (res.ok) {
+        const { titre: saved } = await res.json();
+        // Replace temp entry with real DB row (preserves purchase links in UI)
+        setAllTitres((prev) =>
+          prev.map((x) =>
+            x.id === tempId
+              ? { ...saved, statut: 'valide', itunes_url: t.itunes_url, pochette_url: t.pochette_url }
+              : x
+          )
+        );
+        toast({ title: 'Titre ajouté ✅', description: `${t.titre} — ${t.artiste}` });
+      } else {
+        // Server error — keep optimistic entry but mark it clearly
+        toast({ title: 'Erreur serveur', description: "Le titre n'a pas pu être sauvegardé.", variant: 'destructive' });
+        setAllTitres((prev) => prev.filter((x) => x.id !== tempId));
+      }
+    } catch {
+      toast({ title: 'Erreur réseau', description: "Impossible de sauvegarder le titre.", variant: 'destructive' });
+      setAllTitres((prev) => prev.filter((x) => x.id !== tempId));
+    }
+  }
+
   async function handleNext() {
     if (hasNextPageLocal) {
       setPage((p) => p + 1);
@@ -380,26 +425,58 @@ export default function DecouvertePage() {
           />
         </div>
 
-        {/* Résultats de recherche */}
+        {/* Résultats de recherche iTunes */}
         {searchQuery.length >= 2 && (
           <div className="mb-6">
-            <h2 className="text-sm font-semibold text-muted-foreground mb-3">RÉSULTATS DE RECHERCHE</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+              RÉSULTATS iTunes ({searchResults.length})
+            </h2>
             {searching ? (
-              <p className="text-muted-foreground text-sm">Recherche...</p>
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Recherche en cours…
+              </div>
             ) : searchResults.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Aucun résultat</p>
+              <p className="text-muted-foreground text-sm py-4">Aucun résultat pour &laquo;&nbsp;{searchQuery}&nbsp;&raquo;</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {searchResults.map((t) => (
-                  <Card key={t.musicbrainz_id ?? t.titre}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="font-semibold">{t.titre}</div>
-                          <div className="text-sm text-muted-foreground">{t.artiste}{t.annee ? ` (${t.annee})` : ''}</div>
+                  <Card key={t.id ?? t.titre} className="hover:shadow-sm transition-shadow">
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        {/* Pochette iTunes */}
+                        {t.pochette_url ? (
+                          <Image
+                            src={t.pochette_url}
+                            alt={t.titre}
+                            width={48}
+                            height={48}
+                            className="rounded-md object-cover flex-shrink-0"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-[#EDEAE3] rounded-md flex items-center justify-center flex-shrink-0 text-xl">
+                            🎵
+                          </div>
+                        )}
+                        {/* Infos */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm truncate">{t.titre}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {t.artiste}{t.annee ? ` · ${t.annee}` : ''}
+                          </div>
                         </div>
-                        <Button size="sm" onClick={() => importerFichier(t as Titre)}>
-                          <Upload className="h-4 w-4 mr-2" /> Importer
+                        {/* Ajouter */}
+                        <Button
+                          size="sm"
+                          className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white shrink-0"
+                          onClick={() => ajouterDepuisRecherche(t)}
+                          disabled={allTitres.some((x) => x.id === t.id || (x.titre === t.titre && x.artiste === t.artiste))}
+                        >
+                          {allTitres.some((x) => x.id === t.id || (x.titre === t.titre && x.artiste === t.artiste))
+                            ? '✓ Ajouté'
+                            : '+ Ajouter'
+                          }
                         </Button>
                       </div>
                     </CardContent>
@@ -435,7 +512,7 @@ export default function DecouvertePage() {
 
         {/* Actions bas de page */}
         <div className="mt-8 pb-8 space-y-3">
-          {/* Voir d'autres titres */}
+          {/* Charger plus de titres (conditionnel — visible seulement si des titres sont chargés) */}
           {!loading && allTitres.length > 0 && (
             <Button
               onClick={handleNext}
@@ -444,7 +521,7 @@ export default function DecouvertePage() {
               disabled={loadingMore}
             >
               {loadingMore ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Génération de nouveaux titres...</>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Génération de nouveaux titres…</>
               ) : hasNextPageLocal ? (
                 <><ChevronRight className="h-4 w-4 mr-2" /> Voir les {Math.min(PAGE_SIZE, allTitres.length - (page + 1) * PAGE_SIZE)} titres suivants</>
               ) : (
@@ -453,14 +530,26 @@ export default function DecouvertePage() {
             </Button>
           )}
 
-          {/* Continuer → configuration des fichiers (étape obligatoire du flux) */}
+          {/* ──────────────────────────────────────────────────────────────
+              BOUTON PERMANENT — toujours visible, même en cours de chargement
+              Permet à l'utilisateur de sortir quand il le décide.
+          ────────────────────────────────────────────────────────────────── */}
           <Button
-            onClick={() => router.push('/app/titres')}
+            onClick={() => router.push('/app')}
             size="lg"
-            className="w-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white"
+            className="w-full bg-[#7BA05B] hover:bg-[#7BA05B]/90 text-white font-semibold"
           >
-            Continuer → Configurer mes fichiers
-            <ChevronRight className="h-4 w-4 ml-2" />
+            {nbValides > 0 ? (
+              <>
+                J&apos;ai terminé — {nbValides} titre{nbValides > 1 ? 's' : ''} sélectionné{nbValides > 1 ? 's' : ''} → Aller au lecteur
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </>
+            ) : (
+              <>
+                J&apos;ai terminé ma sélection → Aller au lecteur
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </>
+            )}
           </Button>
         </div>
       </div>

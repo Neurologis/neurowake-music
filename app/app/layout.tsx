@@ -39,9 +39,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .eq('user_id', session.user.id)
       .eq('statut', 'propose');
 
-    // Every title is still unreviewed → user never visited découverte
+    // Every title is still unreviewed → user never visited découverte/dossier
     if (proposedTitres === totalTitres) {
-      redirect('/decouverte');
+      redirect('/dossier');
     }
   }
 
