@@ -3,16 +3,20 @@ import { requireAuth, apiError } from '@/lib/auth';
 import { createServerClient, createAdminClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
-const addSchema = z.object({ titre_id: z.string().uuid() });
+const addSchema    = z.object({ titre_id: z.string().uuid() });
 const removeSchema = z.object({ titre_id: z.string().uuid() });
 
-/** GET /api/playlists/[id]/titres — tracks with signed audio URLs */
+/**
+ * GET /api/playlists/[id]/titres
+ * Returns tracks for a user-created playlist.
+ * `audio_url` is null — the client resolves local URLs from local-audio-store.
+ */
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const { userId, error } = await requireAuth(req);
   if (error) return error;
 
   const supabase = createServerClient();
-  const admin = createAdminClient();
+  const admin    = createAdminClient();
 
   // Verify ownership
   const { data: playlist } = await supabase
@@ -39,27 +43,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // Fetch titres_audio rows
   const { data: audioTitres, error: aErr } = await admin
     .from('titres_audio')
-    .select('*')
+    .select('id, titre, artiste, annee, repetitions, boucle_infinie, ordre, storage_path')
     .in('id', titreIds)
     .eq('user_id', userId);
 
   if (aErr) return apiError('DB error', 'DB_ERROR', 500);
 
-  // Reorder to match playlist ordre and generate signed URLs
+  // Reorder to match playlist ordre, add null audio_url
   const ordered = junctions
     .map((j) => audioTitres?.find((t) => t.id === j.titre_id))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((t) => ({ ...t!, audio_url: null as null }));
 
-  const withUrls = await Promise.all(
-    (ordered as NonNullable<typeof audioTitres>[0][]).map(async (t) => {
-      const { data } = await admin.storage
-        .from('audio-prive')
-        .createSignedUrl(t.storage_path, 3600);
-      return { ...t, audio_url: data?.signedUrl ?? null };
-    })
-  );
-
-  return NextResponse.json({ titres: withUrls });
+  return NextResponse.json({ titres: ordered });
 }
 
 /** POST /api/playlists/[id]/titres — add a track */
@@ -67,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { userId, error } = await requireAuth(req);
   if (error) return error;
 
-  const body = await req.json().catch(() => null);
+  const body   = await req.json().catch(() => null);
   const parsed = addSchema.safeParse(body);
   if (!parsed.success) return apiError('Invalid body', 'VALIDATION_ERROR', 400);
 
@@ -104,8 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .insert({ playlist_id: params.id, titre_id: parsed.data.titre_id, ordre: count ?? 0 });
 
   if (insErr) {
-    // 23505 = unique violation (track already in playlist) — treat as success
-    if (insErr.code === '23505') return NextResponse.json({ success: true });
+    if (insErr.code === '23505') return NextResponse.json({ success: true }); // already in playlist
     return apiError('DB error', 'DB_ERROR', 500);
   }
 
@@ -117,13 +112,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { userId, error } = await requireAuth(req);
   if (error) return error;
 
-  const body = await req.json().catch(() => null);
+  const body   = await req.json().catch(() => null);
   const parsed = removeSchema.safeParse(body);
   if (!parsed.success) return apiError('Invalid body', 'VALIDATION_ERROR', 400);
 
   const supabase = createServerClient();
 
-  // Verify ownership of playlist
   const { data: playlist } = await supabase
     .from('playlists')
     .select('id')

@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Play, Pause, Music, ListMusic, Plus, Trash2, Loader2 } from 'lucide-react';
@@ -11,6 +10,7 @@ import { useAudioPlayer, type PlaylistType, type GammaMode } from '@/hooks/use-a
 import { formatDuration, getCurrentPhase } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from '@/hooks/use-toast';
+import * as localStore from '@/lib/local-audio-store';
 
 interface Profil {
   prenom_proche: string | null;
@@ -20,12 +20,12 @@ interface Profil {
 }
 
 const PLAYLIST_LABELS: Record<PlaylistType, string> = {
-  matin: 'Matin',
-  soins: 'Soins',
-  repas: 'Repas',
+  matin:        'Matin',
+  soins:        'Soins',
+  repas:        'Repas',
   'apres-midi': 'Après-midi',
-  coucher: 'Coucher',
-  favorite: '⭐ Favorite',
+  coucher:      'Coucher',
+  favorite:     '⭐ Favorite',
 };
 
 interface UserPlaylist {
@@ -43,20 +43,46 @@ interface PlaylistTrack {
   boucle_infinie: boolean;
 }
 
-export default function PlayerPage() {
-  const [profil, setProfil] = useState<Profil | null>(null);
-  const [activePlaylist, setActivePlaylist] = useState<PlaylistType>('matin');
-  const [conseil, setConseil] = useState<string | null>(null);
-  const [messageActif, setMessageActif] = useState<{ titre: string; audio_url: string | null } | null>(null);
-  const [messageEnabled, setMessageEnabled] = useState(false);
+/**
+ * Load playlist metadata from the API and resolve local audio URLs.
+ * Returns only the tracks that have an associated local file.
+ */
+async function resolvePlaylist(apiUrl: string): Promise<PlaylistTrack[]> {
+  const res = await fetch(apiUrl);
+  if (!res.ok) return [];
+  const { titres } = await res.json();
+  if (!titres?.length) return [];
 
-  // User-created playlists
-  const [userPlaylists, setUserPlaylists] = useState<UserPlaylist[]>([]);
-  const [launchingPlaylistId, setLaunchingPlaylistId] = useState<string | null>(null);
+  const playable: PlaylistTrack[] = [];
+  for (const t of titres) {
+    const url = await localStore.getUrl(t.id);
+    if (url) {
+      playable.push({
+        id:             t.id,
+        titre:          t.titre,
+        artiste:        t.artiste,
+        audio_url:      url,
+        repetitions:    t.repetitions   ?? 1,
+        boucle_infinie: t.boucle_infinie ?? false,
+      });
+    }
+  }
+  return playable;
+}
+
+export default function PlayerPage() {
+  const [profil, setProfil]                     = useState<Profil | null>(null);
+  const [activePlaylist, setActivePlaylist]      = useState<PlaylistType>('matin');
+  const [conseil, setConseil]                   = useState<string | null>(null);
+  const [messageActif, setMessageActif]         = useState<{ titre: string; audio_url: string | null } | null>(null);
+  const [messageEnabled, setMessageEnabled]     = useState(false);
+
+  const [userPlaylists, setUserPlaylists]               = useState<UserPlaylist[]>([]);
+  const [launchingPlaylistId, setLaunchingPlaylistId]   = useState<string | null>(null);
   const [activeUserPlaylistId, setActiveUserPlaylistId] = useState<string | null>(null);
-  const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
+  const [showCreatePlaylist, setShowCreatePlaylist]     = useState(false);
+  const [newPlaylistName, setNewPlaylistName]           = useState('');
+  const [creatingPlaylist, setCreatingPlaylist]         = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
 
   const player = useAudioPlayer(
@@ -68,7 +94,6 @@ export default function PlayerPage() {
     fetch('/api/profile').then(r => r.json()).then(({ profil: p }) => {
       if (p) {
         setProfil(p);
-        // Sync player gamma settings to the saved profile values
         if (typeof p.gamma_gain === 'number') player.setGammaGain(p.gamma_gain);
         if (p.gamma_mode) player.setGammaMode(p.gamma_mode);
       }
@@ -78,6 +103,12 @@ export default function PlayerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    loadConseil();
+    loadMessage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePlaylist]);
+
   async function loadUserPlaylists() {
     const res = await fetch('/api/playlists');
     if (res.ok) {
@@ -85,11 +116,6 @@ export default function PlayerPage() {
       setUserPlaylists(playlists ?? []);
     }
   }
-
-  useEffect(() => {
-    loadConseil();
-    loadMessage();
-  }, [activePlaylist]);
 
   async function loadConseil() {
     const phase = getCurrentPhase();
@@ -109,56 +135,63 @@ export default function PlayerPage() {
     }
   }
 
+  /** Resolve URLs and start playing a system playlist (matin/soins/…/favorite). */
+  async function startSystemPlaylist(type: PlaylistType): Promise<boolean> {
+    const tracks = await resolvePlaylist(`/api/playlist/${type}`);
+
+    if (tracks.length === 0) {
+      toast({
+        title: 'Aucun fichier audio',
+        description: `Associez des fichiers dans "Mes titres" pour la playlist ${PLAYLIST_LABELS[type]}.`,
+      });
+      return false;
+    }
+
+    await player.playTrackList(tracks, PLAYLIST_LABELS[type]);
+
+    fetch('/api/session/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playlist_type:  type,
+        duree_secondes: 0,
+        gamma_actif:    player.gammaEnabled,
+        gamma_mode:     player.gammaMode,
+        message_joue:   messageEnabled && !!messageActif,
+      }),
+    });
+
+    return true;
+  }
+
   async function handlePlay(type: PlaylistType) {
     setActivePlaylist(type);
 
-    // If the same playlist is already playing → pause (toggle off).
-    // Uses stale `activePlaylist` intentionally: the state update above hasn't
-    // re-rendered yet, so activePlaylist still holds the pre-click value.
+    // Same playlist already playing → pause (toggle)
     if (player.isPlaying && activePlaylist === type) {
       player.pause();
       return;
     }
 
-    // player.play() stops any current playback then loads + starts the new playlist.
-    // Returns false if the playlist is empty (no tracks imported yet).
-    const started = await player.play(type);
-
-    if (!started) {
-      toast({
-        title: 'Playlist vide',
-        description: 'Importez des fichiers audio dans "Mes titres" pour écouter cette playlist.',
-      });
-      return;
-    }
-
-    // Log session start
-    fetch('/api/session/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playlist_type: type,
-        duree_secondes: 0,
-        gamma_actif: player.gammaEnabled,
-        gamma_mode: player.gammaMode,
-        message_joue: messageEnabled && !!messageActif,
-      }),
-    });
+    await startSystemPlaylist(type);
   }
 
   async function launchUserPlaylist(pl: UserPlaylist) {
     setLaunchingPlaylistId(pl.id);
     try {
-      const res = await fetch(`/api/playlists/${pl.id}/titres`);
-      if (!res.ok) throw new Error('fetch failed');
-      const { titres } = await res.json();
-      if (!titres || titres.length === 0) {
-        toast({ title: 'Playlist vide', description: 'Ajoutez des titres depuis "Mes titres".' });
+      const tracks = await resolvePlaylist(`/api/playlists/${pl.id}/titres`);
+
+      if (tracks.length === 0) {
+        toast({
+          title: 'Aucun fichier associé',
+          description: 'Associez des fichiers audio depuis "Mes titres" pour écouter cette playlist.',
+        });
         return;
       }
+
       setActiveUserPlaylistId(pl.id);
-      setActivePlaylist('matin'); // reset system playlist highlight
-      await player.playTrackList(titres as PlaylistTrack[], pl.nom);
+      setActivePlaylist('matin');
+      await player.playTrackList(tracks, pl.nom);
     } catch {
       toast({ title: 'Erreur', description: 'Impossible de charger la playlist.', variant: 'destructive' });
     } finally {
@@ -176,10 +209,10 @@ export default function PlayerPage() {
     });
     if (res.ok) {
       const { playlist } = await res.json();
-      setUserPlaylists((p) => [...p, playlist]);
+      setUserPlaylists(p => [...p, playlist]);
       setNewPlaylistName('');
       setShowCreatePlaylist(false);
-      toast({ title: 'Playlist créée', description: `"${playlist.nom}" prête — ajoutez des titres depuis "Mes titres".` });
+      toast({ title: 'Playlist créée', description: `"${playlist.nom}" prête.` });
     }
     setCreatingPlaylist(false);
   }
@@ -187,7 +220,7 @@ export default function PlayerPage() {
   async function deleteUserPlaylist(id: string) {
     if (!confirm('Supprimer cette playlist ?')) return;
     await fetch(`/api/playlists/${id}`, { method: 'DELETE' });
-    setUserPlaylists((p) => p.filter((x) => x.id !== id));
+    setUserPlaylists(p => p.filter(x => x.id !== id));
     if (activeUserPlaylistId === id) setActiveUserPlaylistId(null);
   }
 
@@ -237,7 +270,6 @@ export default function PlayerPage() {
             </button>
           </div>
 
-          {/* Formulaire création */}
           {showCreatePlaylist && (
             <div className="flex gap-2 mb-3">
               <Input
@@ -256,7 +288,7 @@ export default function PlayerPage() {
 
           {userPlaylists.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Aucune playlist. Cliquez sur <span className="text-[#4A6FA5]">+</span> pour en créer une, puis ajoutez des titres depuis &quot;Mes titres&quot;.
+              Aucune playlist. Cliquez sur <span className="text-[#4A6FA5]">+</span> pour en créer une.
             </p>
           ) : (
             <div className="space-y-2">
@@ -278,11 +310,10 @@ export default function PlayerPage() {
                       onClick={() => launchUserPlaylist(pl)}
                       disabled={launchingPlaylistId === pl.id}
                     >
-                      {launchingPlaylistId === pl.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <><Play className="h-3 w-3 mr-1" />Lancer</>
-                      )}
+                      {launchingPlaylistId === pl.id
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <><Play className="h-3 w-3 mr-1" />Lancer</>
+                      }
                     </Button>
                     <button
                       onClick={() => deleteUserPlaylist(pl.id)}
@@ -304,14 +335,12 @@ export default function PlayerPage() {
           onClick={() => handlePlay(activePlaylist)}
           className={`w-32 h-32 rounded-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 flex items-center justify-center transition-all shadow-lg ${player.isPlaying ? 'player-pulse' : ''}`}
         >
-          {player.isPlaying ? (
-            <Pause className="h-12 w-12 text-white" />
-          ) : (
-            <Play className="h-12 w-12 text-white ml-2" />
-          )}
+          {player.isPlaying
+            ? <Pause className="h-12 w-12 text-white" />
+            : <Play  className="h-12 w-12 text-white ml-2" />
+          }
         </button>
 
-        {/* Info titre en cours */}
         {player.currentTrack && (
           <div className="text-center">
             <p className="font-semibold text-[#2C2C2A]">{player.currentTrack.titre}</p>
@@ -353,10 +382,7 @@ export default function PlayerPage() {
                 )}
               </div>
               {messageActif && (
-                <Switch
-                  checked={messageEnabled}
-                  onCheckedChange={setMessageEnabled}
-                />
+                <Switch checked={messageEnabled} onCheckedChange={setMessageEnabled} />
               )}
             </div>
           </CardContent>
@@ -370,10 +396,7 @@ export default function PlayerPage() {
                 <p className="font-medium">Fréquences 40Hz</p>
                 <p className="text-xs text-muted-foreground">Stimulation sensorielle douce</p>
               </div>
-              <Switch
-                checked={player.gammaEnabled}
-                onCheckedChange={player.setGammaEnabled}
-              />
+              <Switch checked={player.gammaEnabled} onCheckedChange={player.setGammaEnabled} />
             </div>
 
             {player.gammaEnabled && (

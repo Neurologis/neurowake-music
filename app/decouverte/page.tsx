@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { Check, X, HelpCircle, Upload, ShoppingCart, Search, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, X, HelpCircle, Upload, ShoppingCart, Search, ChevronRight, Loader2, HardDrive } from 'lucide-react';
+import * as localStore from '@/lib/local-audio-store';
 
 type PhaseRecommandee = 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
 
@@ -151,31 +152,55 @@ export default function DecouvertePage() {
     return () => clearTimeout(timer);
   }, [searchQuery, searchDebounce]);
 
+  /**
+   * Associate a local audio file with a recommended titre.
+   * The file stays on the user's device — only metadata is saved to the server.
+   * Steps:
+   *   1. Open file picker (FSA on desktop, <input> on mobile)
+   *   2. Create a titres_audio DB record (metadata only)
+   *   3. Associate the file in localStore (session/persistent)
+   *   4. Mark the recommended titre as 'importe'
+   */
   async function importerFichier(titre: Titre) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      setUploading(titre.id);
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('titre', titre.titre);
-      fd.append('artiste', titre.artiste);
-      if (titre.annee) fd.append('annee', titre.annee.toString());
+    setUploading(titre.id);
+    try {
+      // Open file picker and get the selected file
+      const file = await localStore.pickAndAssociate(`tmp-${titre.id}`);
+      if (!file) { setUploading(null); return; }
 
-      const res = await fetch('/api/audio/upload', { method: 'POST', body: fd });
-      if (res.ok) {
-        await valider(titre.id, 'valide');
-        setAllTitres((t) => t.map((x) => (x.id === titre.id ? { ...x, statut: 'importe' } : x)));
-        toast({ title: 'Titre importé !', description: `${titre.titre} ajouté à votre bibliothèque` });
-      } else {
-        toast({ title: 'Erreur', description: "Impossible d'importer le fichier", variant: 'destructive' });
+      // Create a titres_audio record with metadata only (no upload)
+      const res = await fetch('/api/titres', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titre:    titre.titre,
+          artiste:  titre.artiste,
+          annee:    titre.annee,
+          filename: file.name,
+        }),
+      });
+
+      if (!res.ok) {
+        toast({ title: 'Erreur', description: "Impossible d'enregistrer le titre.", variant: 'destructive' });
+        setUploading(null);
+        return;
       }
+
+      const newTitre = await res.json();
+
+      // Re-associate the file with the real DB ID (the tmp- key is discarded)
+      await localStore.removeAssociation(`tmp-${titre.id}`);
+      await localStore.associateFile(newTitre.id, file);
+
+      // Mark the recommended titre as imported
+      await valider(titre.id, 'valide');
+      setAllTitres((t) => t.map((x) => (x.id === titre.id ? { ...x, statut: 'importe' } : x)));
+      toast({ title: 'Titre associé ✅', description: `${titre.titre} — fichier sur votre appareil` });
+    } catch {
+      toast({ title: 'Erreur', description: "Impossible d'associer le fichier.", variant: 'destructive' });
+    } finally {
       setUploading(null);
-    };
-    input.click();
+    }
   }
 
   function TitreCard({ titre }: { titre: Titre }) {
@@ -241,6 +266,7 @@ export default function DecouvertePage() {
 
               {(titre.statut === 'valide' || titre.statut === 'incertain') && !isImporte && (
                 <div className="flex flex-col gap-2 mt-3">
+                  {/* Associate local file */}
                   <Button
                     size="sm"
                     className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 w-full justify-start"
@@ -248,27 +274,41 @@ export default function DecouvertePage() {
                     disabled={uploading === titre.id}
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    {uploading === titre.id ? 'Import...' : "J'ai ce fichier → Importer"}
+                    {uploading === titre.id
+                      ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" />Association…</>
+                      : "J'ai ce fichier → Associer depuis mon appareil"}
                   </Button>
-                  {titre.itunes_url && (
-                    <a href={titre.itunes_url} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="w-full justify-start">
-                        <ShoppingCart className="h-4 w-4 mr-2" /> Acheter iTunes 1,29€
-                      </Button>
-                    </a>
-                  )}
-                  {titre.amazon_url && (
-                    <a href={titre.amazon_url} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="w-full justify-start">
-                        <ShoppingCart className="h-4 w-4 mr-2" /> Acheter Amazon 0,99€
-                      </Button>
-                    </a>
+
+                  {/* Purchase links with post-purchase instruction */}
+                  {(titre.itunes_url || titre.amazon_url) && (
+                    <div className="space-y-1.5">
+                      {titre.itunes_url && (
+                        <a href={titre.itunes_url} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline" className="w-full justify-start">
+                            <ShoppingCart className="h-4 w-4 mr-2" /> Acheter sur iTunes 1,29€
+                          </Button>
+                        </a>
+                      )}
+                      {titre.amazon_url && (
+                        <a href={titre.amazon_url} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline" className="w-full justify-start">
+                            <ShoppingCart className="h-4 w-4 mr-2" /> Acheter sur Amazon 0,99€
+                          </Button>
+                        </a>
+                      )}
+                      <p className="text-xs text-muted-foreground flex items-start gap-1 pt-1">
+                        <HardDrive className="h-3 w-3 mt-0.5 flex-shrink-0 text-[#4A6FA5]" />
+                        Après l&apos;achat, téléchargez le fichier sur votre appareil puis associez-le avec le bouton ci-dessus.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
 
               {isImporte && (
-                <Badge variant="outline" className="mt-2 border-[#7BA05B] text-[#7BA05B]">✓ Importé</Badge>
+                <Badge variant="outline" className="mt-2 border-[#7BA05B] text-[#7BA05B]">
+                  ✓ Fichier associé sur cet appareil
+                </Badge>
               )}
             </div>
           </div>
@@ -287,6 +327,17 @@ export default function DecouvertePage() {
           <p className="text-muted-foreground mt-1">
             Voici les titres qui lui correspondent probablement. Validez ceux qu&apos;il aimait.
           </p>
+
+          {/* Bannière stockage local */}
+          <div className="mt-3 flex items-start gap-2 bg-[#4A6FA5]/5 border border-[#4A6FA5]/20 rounded-lg p-3">
+            <HardDrive className="h-4 w-4 text-[#4A6FA5] mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-[#2C2C2A]">
+              <strong>NeuroWake Music</strong> lit les fichiers directement depuis votre appareil.
+              Aucun fichier musical n&apos;est envoyé sur internet.
+              Après avoir validé un titre, associez son fichier audio depuis votre ordinateur, tablette ou téléphone.
+            </p>
+          </div>
+        </div>
           <div className="flex items-center gap-4 mt-2 text-sm">
             {nbValides > 0 && (
               <span className="text-[#7BA05B] font-medium">{nbValides} validé(s)</span>
@@ -300,7 +351,6 @@ export default function DecouvertePage() {
               </span>
             )}
           </div>
-        </div>
 
         {/* Barre de recherche */}
         <div className="relative mb-6">

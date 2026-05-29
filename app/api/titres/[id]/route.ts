@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
-import { createServerClient, createAdminClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const patchSchema = z.object({
-  repetitions: z.number().int().min(1).max(10).optional(),
-  boucle_infinie: z.boolean().optional(),
-  note_aidant: z.string().max(500).optional(),
-  ordre: z.number().int().optional(),
+  repetitions:           z.number().int().min(1).max(10).optional(),
+  boucle_infinie:        z.boolean().optional(),
+  note_aidant:           z.string().max(500).optional(),
+  ordre:                 z.number().int().optional(),
   dans_playlist_favorite: z.boolean().optional(),
-  titre: z.string().optional(),
-  artiste: z.string().optional(),
+  titre:                 z.string().optional(),
+  artiste:               z.string().optional(),
+  annee:                 z.number().int().min(1900).max(2030).optional().nullable(),
+  // `storage_path` is updated when the user renames the associated file
+  storage_path:          z.string().max(500).optional(),
 });
 
 export async function PATCH(
@@ -46,10 +49,10 @@ export async function DELETE(
 
   const supabase = createServerClient();
 
-  // Get storage path before delete
+  // Verify the titre belongs to this user before deleting
   const { data: titre } = await supabase
     .from('titres_audio')
-    .select('storage_path')
+    .select('id')
     .eq('id', params.id)
     .eq('user_id', userId)
     .single();
@@ -64,9 +67,8 @@ export async function DELETE(
 
   if (dbError) return apiError('Delete failed', 'DB_ERROR', 500);
 
-  // Delete from storage
-  const admin = createAdminClient();
-  await admin.storage.from('audio-prive').remove([titre.storage_path]);
+  // NOTE: no Supabase Storage deletion — files live on the user's device.
+  // The client is responsible for calling removeAssociation() from local-audio-store.
 
   return NextResponse.json({ success: true });
 }

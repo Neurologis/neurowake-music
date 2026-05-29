@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
-import { createServerClient, createAdminClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 
 const validTypes = ['matin', 'soins', 'repas', 'apres-midi', 'coucher', 'favorite'];
 
+/**
+ * GET /api/playlist/[type]
+ * Returns track metadata for the requested playlist type.
+ * `audio_url` is intentionally null — the client resolves local file URLs
+ * from the local-audio-store before passing tracks to the player.
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: { type: string } }
@@ -18,7 +24,7 @@ export async function GET(
   const supabase = createServerClient();
   let query = supabase
     .from('titres_audio')
-    .select('*')
+    .select('id, titre, artiste, annee, repetitions, boucle_infinie, ordre, storage_path')
     .eq('user_id', userId)
     .order('ordre', { ascending: true });
 
@@ -29,16 +35,11 @@ export async function GET(
   const { data: titres, error: dbError } = await query;
   if (dbError) return apiError('DB error', 'DB_ERROR', 500);
 
-  const admin = createAdminClient();
+  // audio_url is null — the client resolves it from the local file store.
+  const titresWithNullUrl = (titres ?? []).map((t) => ({
+    ...t,
+    audio_url: null as null,
+  }));
 
-  const titresAvecUrls = await Promise.all(
-    (titres ?? []).map(async (t) => {
-      const { data } = await admin.storage
-        .from('audio-prive')
-        .createSignedUrl(t.storage_path, 3600);
-      return { ...t, audio_url: data?.signedUrl ?? null };
-    })
-  );
-
-  return NextResponse.json({ titres: titresAvecUrls });
+  return NextResponse.json({ titres: titresWithNullUrl });
 }
