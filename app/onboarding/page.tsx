@@ -30,6 +30,37 @@ interface ProfileData {
 // 1920–2010 covers the realistic range for the app's use case
 const ANNEES = Array.from({ length: 91 }, (_, i) => (1920 + i).toString()).reverse();
 
+// Pays d'origine
+const PAYS_JEUNESSE = [
+  'France','Belgique','Suisse','Canada','Québec',
+  'Maroc','Tunisie','Algérie','Sénégal','Côte d\'Ivoire','Cameroun','Madagascar',
+  'Espagne','Mexique','Argentine','Colombie','Chili','Pérou','Venezuela','Cuba',
+  'Équateur','Bolivie','Uruguay','Paraguay','Costa Rica','Panama','Guatemala',
+  'Italie','Portugal','Allemagne','Royaume-Uni','Belgique','Pays-Bas','Pologne',
+  'Autre',
+];
+
+// Pays de résidence actuel (liste complète)
+const PAYS_RESIDENCE = [
+  'France','Belgique','Suisse','Canada','Québec',
+  'Maroc','Tunisie','Algérie','Sénégal','Côte d\'Ivoire','Cameroun',
+  'Espagne','Mexique','Argentine','Colombie','Chili','Pérou','Venezuela','Cuba',
+  'Italie','Portugal','Allemagne','Royaume-Uni','Pays-Bas','Suède','Australie',
+  'États-Unis','Brésil','Japon','Autre',
+];
+
+/** Déduit la langue de l'interface à partir du pays */
+function detectLangue(pays: string): 'fr' | 'es' | 'en' {
+  const p = pays.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const fr = ['france','belgique','suisse','canada','quebec','maroc','tunisie','algerie',
+               'senegal','cote d ivoire','cameroun','madagascar'];
+  const es = ['espagne','mexique','argentine','colombie','chili','perou','venezuela','cuba',
+               'equateur','bolivie','uruguay','paraguay','costa rica','panama','guatemala'];
+  if (fr.some((c) => p.includes(c))) return 'fr';
+  if (es.some((c) => p.includes(c))) return 'es';
+  return 'en';
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>('form');
@@ -42,6 +73,7 @@ export default function OnboardingPage() {
     annee_naissance: '1940',
     ville_jeunesse: '',
     pays_jeunesse: 'France',
+    pays_residence: '',   // vide = identique au pays de jeunesse
   });
   // Synchronous lock — prevents double-send from rapid Enter+click or StrictMode
   const sendingRef = useRef(false);
@@ -213,10 +245,11 @@ export default function OnboardingPage() {
             annee_naissance: annee,
             ville_jeunesse: formData.ville_jeunesse,
             pays_jeunesse: formData.pays_jeunesse,
+            pays_residence: formData.pays_residence || formData.pays_jeunesse,
             bump_annee_debut: annee + 15,
             bump_annee_fin: annee + 30,
             ...extractedData,
-            langue: 'fr',
+            langue: detectLangue(formData.pays_jeunesse),
             conversation_history: messages,
           },
         }),
@@ -314,9 +347,22 @@ export default function OnboardingPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {['France','Espagne','Belgique','Suisse','Canada','Québec','Maroc','Tunisie','Algérie','Italie','Portugal','Autre'].map(p =>
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
-                    )}
+                    {PAYS_JEUNESSE.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Pays de résidence actuel <span className="text-muted-foreground font-normal">(si différent du pays de jeunesse)</span></Label>
+                <Select
+                  value={formData.pays_residence || '__same__'}
+                  onValueChange={(v) => setFormData(p => ({ ...p, pays_residence: v === '__same__' ? '' : v }))}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__same__">— Identique au pays de jeunesse —</SelectItem>
+                    {PAYS_RESIDENCE.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
 import { createServerClient, createAdminClient } from '@/lib/supabase/server';
-import { generateMusicDiscovery } from '@/lib/services/anthropic';
+import { generateMusicDiscovery, detectLangueFromPays } from '@/lib/services/anthropic';
 import { z } from 'zod';
 import type { Json } from '@/lib/supabase/types';
 
@@ -20,6 +20,7 @@ const schema = z.object({
     annee_naissance: z.number().int().min(1900).max(2010),
     ville_jeunesse: z.string().min(1),
     pays_jeunesse: z.string().default('France'),
+    pays_residence: z.string().optional(),
     bump_annee_debut: z.number().int(),
     bump_annee_fin: z.number().int(),
     // AI may return a comma-separated string instead of an array
@@ -44,7 +45,11 @@ const schema = z.object({
       if (typeof v === 'number') return v !== 0;
       return false;
     }, z.boolean().default(false)),
-    langue: z.enum(['fr', 'es', 'en']).default('fr'),
+    // langue is auto-detected server-side from pays_jeunesse if not specified by client
+    langue: z.preprocess(
+      (v) => (!v || typeof v !== 'string' ? undefined : v),
+      z.enum(['fr', 'es', 'en']).optional()
+    ),
     conversation_history: z.array(z.any()).default([]),
   }),
 });
@@ -65,6 +70,12 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   // Sauvegarder le profil
+  // Auto-detect langue from pays if not explicitly provided by the client
+  const langueDetectee: 'fr' | 'es' | 'en' =
+    profil.langue ?? detectLangueFromPays(profil.pays_jeunesse ?? 'France');
+
+  const paysResidence = profil.pays_residence ?? profil.pays_jeunesse ?? 'France';
+
   const upsertPayload = {
     user_id: userId,
     prenom_proche: profil.prenom_proche ?? null,
@@ -82,7 +93,7 @@ export async function POST(req: NextRequest) {
     gamma_gain: 0.04,
     gamma_mode: (profil.acouphenes ? 'am' : 'binaural') as 'binaural' | 'monaural' | 'am',
     routine_prioritaire: 'matin' as const,
-    langue: profil.langue ?? 'fr',
+    langue: langueDetectee,
     conversation_history: (profil.conversation_history ?? []) as Json,
     onboarding_complet: true,
     updated_at: new Date().toISOString(),
@@ -126,8 +137,9 @@ export async function POST(req: NextRequest) {
       genres_preferes: profil.genres_preferes,
       passions: profil.passions,
       pays_jeunesse: profil.pays_jeunesse,
+      pays_residence: paysResidence !== profil.pays_jeunesse ? paysResidence : undefined,
       chanson_madeleine: profil.chanson_madeleine,
-      limit: 30,
+      limit: 50,
     });
 
     const inserts = titresIA.map((t) => ({

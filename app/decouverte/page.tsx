@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { Check, X, HelpCircle, Upload, ShoppingCart, Search, ChevronRight, Loader2, HardDrive } from 'lucide-react';
+import { Check, X, HelpCircle, Upload, ShoppingCart, Search, ChevronRight, Loader2, HardDrive, LogOut } from 'lucide-react';
 import * as localStore from '@/lib/local-audio-store';
+import { createClient } from '@/lib/supabase/client';
 
 type PhaseRecommandee = 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
 
@@ -37,6 +38,12 @@ const PHASE_CONFIG: Record<PhaseRecommandee, { label: string; className: string 
 
 export default function DecouvertePage() {
   const router = useRouter();
+  const supabase = createClient();
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
+  }
 
   // All titles fetched from API
   const [allTitres, setAllTitres] = useState<Titre[]>([]);
@@ -323,7 +330,17 @@ export default function DecouvertePage() {
 
         {/* Header */}
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-[#2C2C2A]">La musique de votre proche</h1>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h1 className="text-2xl font-bold text-[#2C2C2A]">La musique de votre proche</h1>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[#2C2C2A] transition-colors shrink-0"
+              title="Se déconnecter"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Déconnexion</span>
+            </button>
+          </div>
           <p className="text-muted-foreground mt-1">
             Voici les titres qui lui correspondent probablement. Validez ceux qu&apos;il aimait.
           </p>
@@ -436,9 +453,14 @@ export default function DecouvertePage() {
             </Button>
           )}
 
-          {/* Continuer vers le lecteur */}
-          <Button onClick={() => router.push('/app')} size="lg" className="w-full">
-            Continuer vers le lecteur →
+          {/* Continuer → configuration des fichiers (étape obligatoire du flux) */}
+          <Button
+            onClick={() => router.push('/app/titres')}
+            size="lg"
+            className="w-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white"
+          >
+            Continuer → Configurer mes fichiers
+            <ChevronRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
       </div>

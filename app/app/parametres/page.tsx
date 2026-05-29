@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
+import { LogOut } from 'lucide-react';
 
 interface Profil {
   langue: 'fr' | 'es' | 'en';
@@ -74,6 +75,11 @@ export default function ParametresPage() {
       const { url } = await res.json();
       window.location.href = url;
     }
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
   }
 
   async function handleDeleteAccount() {
@@ -214,6 +220,20 @@ export default function ParametresPage() {
               S&apos;abonner — 14 jours gratuits
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Déconnexion — visible sur mobile via cette page */}
+      <Card>
+        <CardContent className="p-4">
+          <Button
+            variant="outline"
+            className="w-full flex items-center gap-2 text-[#4A6FA5] border-[#4A6FA5] hover:bg-[#4A6FA5]/10"
+            onClick={handleLogout}
+          >
+            <LogOut className="h-4 w-4" />
+            Se déconnecter
+          </Button>
         </CardContent>
       </Card>
 

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const excludeList = (existingTitres ?? []).map((t) => `${t.artiste} — ${t.titre}`);
 
-  // Generate 15 new unique titles
+  // Generate 20 new unique titles (up to 100 total with multiple calls)
   const newTitres = await generateMusicDiscovery({
     annee_naissance: profil.annee_naissance,
     bump_annee_debut: profil.bump_annee_debut,
@@ -40,9 +40,10 @@ export async function POST(req: NextRequest) {
     genres_preferes: profil.genres_preferes ?? [],
     passions: profil.passions ?? [],
     pays_jeunesse: profil.pays_jeunesse,
+    // pays_residence pending DB migration — uses pays_jeunesse as cultural baseline
     chanson_madeleine: profil.chanson_madeleine,
     exclude_artiste_titre: excludeList,
-    limit: 15,
+    limit: 20,
   });
 
   if (newTitres.length === 0) {

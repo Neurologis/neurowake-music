@@ -138,8 +138,9 @@ export async function GET(req: NextRequest) {
           genres_preferes: profil.genres_preferes ?? [],
           passions: profil.passions ?? [],
           pays_jeunesse: profil.pays_jeunesse ?? 'France',
+          // pays_residence used only at onboarding time (column pending DB migration)
           chanson_madeleine: profil.chanson_madeleine,
-          limit: 30,
+          limit: 50,
         }),
         50_000,
         'decouverte/titres'

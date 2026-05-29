@@ -150,6 +150,26 @@ export interface TitreDecouvert {
   phase_recommandee: PhaseRecommandee;
 }
 
+// ---------------------------------------------------------------------------
+// Helper: detect interface language from country name
+// ---------------------------------------------------------------------------
+export function detectLangueFromPays(pays: string): 'fr' | 'es' | 'en' {
+  const p = (pays ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const francophone = [
+    'france', 'belgique', 'suisse', 'canada', 'quebec', 'maroc', 'tunisie', 'algerie',
+    'senegal', 'mali', 'benin', 'togo', 'cameroun', 'gabon', 'congo', 'cote d ivoire',
+    'madagascar', 'mauritanie', 'niger', 'burkina', 'rwanda', 'burundi', 'djibouti',
+  ];
+  const hispanophone = [
+    'espagne', 'mexique', 'argentine', 'colombie', 'chili', 'perou', 'venezuela', 'cuba',
+    'equateur', 'bolivie', 'uruguay', 'paraguay', 'costa rica', 'panama', 'guatemala',
+    'honduras', 'salvador', 'nicaragua', 'republique dominicaine', 'porto rico',
+  ];
+  if (francophone.some((c) => p.includes(c))) return 'fr';
+  if (hispanophone.some((c) => p.includes(c))) return 'es';
+  return 'en';
+}
+
 export async function generateMusicDiscovery(params: {
   annee_naissance: number;
   bump_annee_debut: number;
@@ -157,6 +177,7 @@ export async function generateMusicDiscovery(params: {
   genres_preferes: string[];
   passions: string[];
   pays_jeunesse: string;
+  pays_residence?: string | null;
   chanson_madeleine?: string | null;
   exclude_artiste_titre?: string[];
   limit?: number;
@@ -167,51 +188,68 @@ export async function generateMusicDiscovery(params: {
     genres_preferes,
     passions,
     pays_jeunesse,
+    pays_residence,
     chanson_madeleine,
     exclude_artiste_titre = [],
-    limit = 30,
+    limit = 50,
   } = params;
 
   console.log('[generateMusicDiscovery] Called with:', {
     period: `${bump_annee_debut}–${bump_annee_fin}`,
     pays: pays_jeunesse,
+    pays_residence: pays_residence ?? '(identique)',
     genres: genres_preferes,
     passions,
     limit,
     excludeCount: exclude_artiste_titre.length,
   });
 
-  const genresStr = genres_preferes.length > 0 ? genres_preferes.join(', ') : 'variété, chanson populaire';
+  const genresStr  = genres_preferes.length > 0 ? genres_preferes.join(', ') : 'variété, chanson populaire';
   const passionsStr = passions.length > 0 ? passions.join(', ') : 'musique';
+
   const excludeNote =
     exclude_artiste_titre.length > 0
       ? `\nNe JAMAIS inclure ces titres déjà proposés :\n${exclude_artiste_titre.slice(0, 60).join('\n')}`
       : '';
+
   const madeleineNote = chanson_madeleine
-    ? `\nChanson madeleine : "${chanson_madeleine}" — inspire-toi du style et de l'époque.`
+    ? `\nChanson madeleine (titre qui lui tient à cœur) : "${chanson_madeleine}" — inspire-toi du style et de l'époque de ce titre.`
     : '';
 
-  const prompt = `Tu es expert en histoire musicale et catalogues de hits.
+  // If resident in a different country → bilingual note
+  const residenceNote =
+    pays_residence && pays_residence.toLowerCase() !== pays_jeunesse.toLowerCase()
+      ? `\nPays de résidence actuel : ${pays_residence} — inclure aussi des hits populaires locaux du pays de résidence (en plus des titres en langue d'origine).`
+      : '';
+
+  const prompt = `Tu es expert en histoire musicale et catalogues de hits internationaux.
 
 Génère exactement ${limit} titres musicaux RÉELS, POPULAIRES et VÉRIFIABLES pour ce profil :
 
-Période musicale formatrice : ${bump_annee_debut}–${bump_annee_fin}
-Pays d'origine : ${pays_jeunesse}
+Période musicale formatrice (années du bump) : ${bump_annee_debut}–${bump_annee_fin}
+Pays d'origine / culture musicale : ${pays_jeunesse}${residenceNote}
 Genres préférés : ${genresStr}
 Passions & activités : ${passionsStr}${madeleineNote}${excludeNote}
 
+ORDRE DE PRIORITÉ STRICT (respecte-le absolument) :
+1. D'abord les titres et artistes explicitement mentionnés dans l'historique de conversation
+2. Ensuite les grands hits de la période ${bump_annee_debut}–${bump_annee_fin} dans la culture de ${pays_jeunesse}
+3. Puis le top hits de l'époque dans le pays / la langue du profil (titres locaux, pas uniquement les versions internationales)
+4. Puis les titres qui correspondent aux émotions et passions déclarées : ${passionsStr}
+5. Titres classés par phase de journée selon BPM et style musical
+
 RÈGLES ABSOLUES :
 1. Uniquement des titres ayant réellement existé et été populaires (hits, pas des B-sides obscures)
-2. Correspondance culturelle stricte avec ${pays_jeunesse} (artistes locaux prioritaires)
+2. Correspondance culturelle stricte avec ${pays_jeunesse} (artistes locaux prioritaires, dans la langue du pays)
 3. Maximum 2 titres par artiste sur l'ensemble de la liste
 4. Répartition équilibrée : ~${Math.round(limit / 5)} titres par phase
 
-PHASES DE JOURNÉE (énergie du titre) :
-• "matin"      = énergique, dynamique, optimiste, tempo rapide
-• "soins"      = doux, calme, apaisant, lent
-• "repas"      = gai, festif, convivial, enjoué
-• "apres-midi" = nostalgique, sentimental, mélodieux, mélancolique
-• "coucher"    = lent, introspectif, relaxant
+PHASES DE JOURNÉE (énergie + BPM du titre) :
+• "matin"      = énergique, dynamique, optimiste  — BPM > 100, rythme rapide, style rythmé
+• "soins"      = doux, calme, apaisant            — BPM 60–80, rythme lent, style calme
+• "repas"      = gai, festif, convivial, enjoué   — BPM 80–100, ambiance légère et conviviale
+• "apres-midi" = nostalgique, sentimental, mélodieux — BPM 70–90, mélancolique
+• "coucher"    = lent, introspectif, relaxant     — BPM < 70, berceuse ou ballade lente
 
 Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
 [{"titre":"...","artiste":"...","annee":1978,"phase_recommandee":"matin"},...]`;
