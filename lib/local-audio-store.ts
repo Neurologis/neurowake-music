@@ -421,6 +421,34 @@ export async function getMusicFolderParentName(): Promise<string | null> {
 }
 
 /**
+ * Copy a File into the NeuroWake Music folder (if one has been configured).
+ * Uses the File System Access API — no-op if FSA unavailable or folder not set up.
+ * Returns true on success, false if unavailable or on error.
+ */
+export async function copyToMusicFolder(file: File): Promise<boolean> {
+  if (!supportsDirectoryPicker()) return false;
+  const dirHandle = await getMusicFolderHandle();
+  if (!dirHandle) return false;
+
+  try {
+    // FileSystemDirectoryHandle.getFileHandle + createWritable are FSA-only
+    const fh = await (dirHandle as unknown as {
+      getFileHandle(name: string, opts: { create: boolean }): Promise<{
+        createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }>;
+      }>;
+    }).getFileHandle(file.name, { create: true });
+
+    const writable = await fh.createWritable();
+    await writable.write(file);
+    await writable.close();
+    return true;
+  } catch (err) {
+    console.warn('[LocalAudioStore] copyToMusicFolder error:', (err as Error)?.message);
+    return false;
+  }
+}
+
+/**
  * Return the persisted "NeuroWake Music" directory handle, or null if not yet set up.
  */
 export async function getMusicFolderHandle(): Promise<FileSystemDirectoryHandle | null> {

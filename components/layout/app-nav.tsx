@@ -4,27 +4,27 @@ import { usePathname } from 'next/navigation';
 import { Music, ListMusic, MessageSquare, Settings, LogOut, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { useT } from '@/hooks/use-t';
 
 interface NavProps {
   profil: { prenom_proche: string | null; onboarding_complet: boolean; langue: string } | null;
   userEmail: string;
 }
 
-const navItems = [
-  { href: '/app', label: 'Lecteur', icon: Music },
-  { href: '/app/titres', label: 'Mes titres', icon: ListMusic },
-  { href: '/app/messages', label: 'Mes messages', icon: MessageSquare },
-  { href: '/app/parametres', label: 'Paramètres', icon: Settings },
-];
-
 export function AppNav({ profil, userEmail }: NavProps) {
   const pathname = usePathname();
   const supabase = createClient();
+  const { t } = useT();
+
+  const navItems = [
+    { href: '/app',            label: t('nav_player'),   icon: Music },
+    { href: '/app/titres',     label: t('nav_tracks'),   icon: ListMusic },
+    { href: '/app/messages',   label: t('nav_messages'), icon: MessageSquare },
+    { href: '/app/parametres', label: t('nav_settings'), icon: Settings },
+  ];
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    // Hard reload so the middleware sees the cleared session cookie immediately.
-    // A soft router.push('/login') can be intercepted before the cookie is flushed.
     window.location.href = '/login';
   }
 
@@ -32,17 +32,13 @@ export function AppNav({ profil, userEmail }: NavProps) {
 
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-white border-r border-border flex-col">
-      {/* Logo */}
       <div className="p-6 border-b">
         <img src="/Logo_Neurowake_Music1.png" alt="NeuroWake Music" className="h-16 w-auto" />
         {profil?.prenom_proche && (
-          <div className="text-sm text-muted-foreground mt-1">
-            Profil de {profil.prenom_proche}
-          </div>
+          <div className="text-sm text-muted-foreground mt-1">Profil de {profil.prenom_proche}</div>
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -53,9 +49,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
               href={item.href}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-[#4A6FA5] text-white'
-                  : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
+                isActive ? 'bg-[#4A6FA5] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
               )}
             >
               <Icon className="h-5 w-5" />
@@ -69,9 +63,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
             href="/admin"
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-              pathname.startsWith('/admin')
-                ? 'bg-[#4A6FA5] text-white'
-                : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
+              pathname.startsWith('/admin') ? 'bg-[#4A6FA5] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
             )}
           >
             <Shield className="h-5 w-5" />
@@ -80,7 +72,6 @@ export function AppNav({ profil, userEmail }: NavProps) {
         )}
       </nav>
 
-      {/* Logout */}
       <div className="p-4 border-t">
         <div className="text-xs text-muted-foreground mb-2 truncate">{userEmail}</div>
         <button
@@ -88,7 +79,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[#2C2C2A] hover:bg-[#EDEAE3] w-full transition-colors"
         >
           <LogOut className="h-5 w-5" />
-          Déconnexion
+          {t('nav_logout')}
         </button>
       </div>
     </aside>

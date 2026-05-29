@@ -151,7 +151,13 @@ export default function TitresPage() {
       setFileStatus(s => ({ ...s, [titreId]: 'ok' }));
       const fmt = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() || 'audio';
       setFileMetas(m => ({ ...m, [titreId]: { filename: file.name, size: file.size, format: fmt } }));
-      toast({ title: 'Fichier associé ✅', description: file.name });
+      // Try to copy the file to the NeuroWake Music folder
+      const copied = await localStore.copyToMusicFolder(file);
+      if (copied) {
+        toast({ title: 'Fichier associé ✅', description: `${file.name} — copié dans NeuroWake Music` });
+      } else {
+        toast({ title: 'Fichier associé ✅', description: file.name });
+      }
     } catch (err) {
       console.error('[titres] associerFichier error:', err);
       toast({ title: 'Erreur', description: "Impossible d'associer le fichier.", variant: 'destructive' });

@@ -4,12 +4,6 @@ import { createServerClient } from '@/lib/supabase/server';
 
 const validTypes = ['matin', 'soins', 'repas', 'apres-midi', 'coucher', 'favorite'];
 
-/**
- * GET /api/playlist/[type]
- * Returns track metadata for the requested playlist type.
- * `audio_url` is intentionally null — the client resolves local file URLs
- * from the local-audio-store before passing tracks to the player.
- */
 export async function GET(
   req: NextRequest,
   { params }: { params: { type: string } }
@@ -22,24 +16,48 @@ export async function GET(
   }
 
   const supabase = createServerClient();
-  let query = supabase
-    .from('titres_audio')
-    .select('id, titre, artiste, annee, repetitions, boucle_infinie, ordre, storage_path')
-    .eq('user_id', userId)
-    .order('ordre', { ascending: true });
 
   if (params.type === 'favorite') {
-    query = query.eq('dans_playlist_favorite', true);
+    const { data, error: dbErr } = await supabase
+      .from('titres_audio')
+      .select('id, titre, artiste, annee, repetitions, boucle_infinie, ordre, storage_path')
+      .eq('user_id', userId)
+      .eq('dans_playlist_favorite', true)
+      .order('ordre', { ascending: true });
+    if (dbErr) return apiError('DB error', 'DB_ERROR', 500);
+    return NextResponse.json({ titres: (data ?? []).map(t => ({ ...t, audio_url: null })) });
   }
 
-  const { data: titres, error: dbError } = await query;
-  if (dbError) return apiError('DB error', 'DB_ERROR', 500);
+  // For phase playlists: fetch all audio titles + phase assignments from recommandes
+  const [audioRes, recommandesRes] = await Promise.all([
+    supabase
+      .from('titres_audio')
+      .select('id, titre, artiste, annee, repetitions, boucle_infinie, ordre, storage_path')
+      .eq('user_id', userId)
+      .order('ordre', { ascending: true }),
+    supabase
+      .from('titres_recommandes')
+      .select('titre, artiste, phase_recommandee')
+      .eq('user_id', userId)
+      .not('phase_recommandee', 'is', null),
+  ]);
 
-  // audio_url is null — the client resolves it from the local file store.
-  const titresWithNullUrl = (titres ?? []).map((t) => ({
-    ...t,
-    audio_url: null as null,
-  }));
+  if (audioRes.error) return apiError('DB error', 'DB_ERROR', 500);
 
-  return NextResponse.json({ titres: titresWithNullUrl });
+  // Build a map: normalized "titre|artiste" → phase_recommandee
+  const phaseMap = new Map<string, string>();
+  for (const r of recommandesRes.data ?? []) {
+    if (!r.phase_recommandee) continue;
+    const key = `${r.titre.toLowerCase().trim()}|${r.artiste.toLowerCase().trim()}`;
+    if (!phaseMap.has(key)) phaseMap.set(key, r.phase_recommandee);
+  }
+
+  // Filter: include if phase matches OR if no phase info (include in all phases as fallback)
+  const filtered = (audioRes.data ?? []).filter(t => {
+    const key = `${t.titre.toLowerCase().trim()}|${t.artiste.toLowerCase().trim()}`;
+    const phase = phaseMap.get(key);
+    return !phase || phase === params.type;
+  });
+
+  return NextResponse.json({ titres: filtered.map(t => ({ ...t, audio_url: null })) });
 }

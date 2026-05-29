@@ -3,16 +3,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Music, ListMusic, MessageSquare, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const navItems = [
-  { href: '/app', label: 'Lecteur', icon: Music },
-  { href: '/app/titres', label: 'Titres', icon: ListMusic },
-  { href: '/app/messages', label: 'Messages', icon: MessageSquare },
-  { href: '/app/parametres', label: 'Réglages', icon: Settings },
-];
+import { useT } from '@/hooks/use-t';
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { t } = useT();
+
+  const navItems = [
+    { href: '/app',            label: t('mobile_player'),   icon: Music },
+    { href: '/app/titres',     label: t('mobile_tracks'),   icon: ListMusic },
+    { href: '/app/messages',   label: t('mobile_messages'), icon: MessageSquare },
+    { href: '/app/parametres', label: t('mobile_settings'), icon: Settings },
+  ];
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50">

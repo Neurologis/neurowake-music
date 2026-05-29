@@ -106,11 +106,19 @@ export default function MessagesPage() {
       setVoixStatus({ hasVoice: true, status: 'ready' });
       toast({ title: 'Voix clonée !', description: 'Vos messages seront lus avec votre voix.' });
       setRecordedBlob(null);
-      // Auto-generate 5 messages
       await fetch('/api/messages/generer-auto', { method: 'POST' });
       await loadAll();
     } else {
-      toast({ title: 'Erreur', description: 'Le clonage a échoué', variant: 'destructive' });
+      const err = await res.json().catch(() => ({}));
+      if (err.code === 'ELEVENLABS_NOT_CONFIGURED') {
+        toast({
+          title: 'Fonctionnalité non disponible',
+          description: 'Le clonage de voix nécessite une clé API ElevenLabs. Contactez le support pour l\'activer sur votre compte.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'Erreur de clonage', description: err.error ?? 'Le clonage a échoué', variant: 'destructive' });
+      }
     }
     setCloning(false);
   }
@@ -184,13 +192,19 @@ export default function MessagesPage() {
                   <Button variant="outline" onClick={() => setRecordedBlob(null)}>Recommencer</Button>
                 </div>
               </div>
+            ) : recording ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  <span className="text-red-700 text-sm font-medium">Enregistrement en cours…</span>
+                </div>
+                <Button onClick={stopRecording} variant="destructive" className="w-full">
+                  <Square className="h-4 w-4 mr-2" /> Arrêter l&apos;enregistrement
+                </Button>
+              </div>
             ) : (
-              <Button
-                onClick={recording ? stopRecording : startRecording}
-                variant={recording ? 'destructive' : 'default'}
-                className={recording ? '' : 'bg-[#4A6FA5]'}
-              >
-                {recording ? <><Square className="h-4 w-4 mr-2" /> Arrêter</> : <><Mic className="h-4 w-4 mr-2" /> Enregistrer ma voix</>}
+              <Button onClick={startRecording} className="bg-[#4A6FA5]">
+                <Mic className="h-4 w-4 mr-2" /> Enregistrer ma voix
               </Button>
             )}
           </CardContent>

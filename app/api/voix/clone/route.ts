@@ -7,6 +7,13 @@ export async function POST(req: NextRequest) {
   const { userId, error } = await requireAuth(req);
   if (error) return error;
 
+  if (!process.env.ELEVENLABS_API_KEY) {
+    return NextResponse.json(
+      { error: 'Le clonage de voix nécessite une clé API ElevenLabs. Contactez le support pour l\'activer sur votre compte.', code: 'ELEVENLABS_NOT_CONFIGURED' },
+      { status: 503 }
+    );
+  }
+
   const formData = await req.formData().catch(() => null);
   if (!formData) return apiError('Invalid form data', 'VALIDATION_ERROR', 400);
 

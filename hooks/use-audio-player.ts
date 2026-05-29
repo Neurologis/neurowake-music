@@ -39,19 +39,30 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     playlistType: 'matin',
   });
 
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const gammaRef = useRef<OscillatorNode | null>(null);
-  const gammaGainRef = useRef<GainNode | null>(null);
-  const musicGainRef = useRef<GainNode | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const offsetRef = useRef<number>(0);
-  const currentBufferRef = useRef<AudioBuffer | null>(null);
+  const [tracks, setTracksState] = useState<Track[]>([]);
+  const tracksRef = useRef<Track[]>([]); // always in sync — avoids stale closures
+
+  // Keep tracksRef in sync with state
+  const updateTracks = useCallback((newTracks: Track[]) => {
+    tracksRef.current = newTracks;
+    setTracksState(newTracks);
+  }, []);
+
+  const audioCtxRef        = useRef<AudioContext | null>(null);
+  const sourceRef          = useRef<AudioBufferSourceNode | null>(null);
+  const gammaRef           = useRef<OscillatorNode | null>(null);
+  const gammaGainRef       = useRef<GainNode | null>(null);
+  const musicGainRef       = useRef<GainNode | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef       = useRef<number>(0);
+  const offsetRef          = useRef<number>(0);
+  const currentBufferRef   = useRef<AudioBuffer | null>(null);
   const repetitionCountRef = useRef<number>(0);
-  // Ref-based currentIndex avoids stale closures in source.onended callbacks
-  const currentIndexRef = useRef<number>(0);
+  const currentIndexRef    = useRef<number>(0);
+  // Stable refs to avoid stale closures in callbacks
+  const gammaEnabledRef    = useRef<boolean>(true);
+  const gammaModeRef       = useRef<GammaMode>(initialGammaMode);
+  const gammaGainValRef    = useRef<number>(initialGammaGain);
 
   const getAudioContext = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
@@ -74,6 +85,10 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
       gammaRef.current.disconnect();
       gammaRef.current = null;
     }
+    if (gammaGainRef.current) {
+      gammaGainRef.current.disconnect();
+      gammaGainRef.current = null;
+    }
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
@@ -81,29 +96,38 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
   }, []);
 
   const startGamma = useCallback((ctx: AudioContext, mode: GammaMode, gain: number) => {
+    // Stop any existing gamma first
+    if (gammaRef.current) {
+      try { gammaRef.current.stop(); } catch {}
+      gammaRef.current.disconnect();
+      gammaRef.current = null;
+    }
+    if (gammaGainRef.current) {
+      gammaGainRef.current.disconnect();
+      gammaGainRef.current = null;
+    }
+
     const gainNode = ctx.createGain();
     gainNode.gain.value = gain;
     gainNode.connect(ctx.destination);
     gammaGainRef.current = gainNode;
 
     if (mode === 'binaural') {
-      const left = ctx.createOscillator();
+      const left  = ctx.createOscillator();
       const right = ctx.createOscillator();
-      left.frequency.value = 200;
-      right.frequency.value = 240; // 40Hz difference = gamma
+      left.frequency.value  = 200;
+      right.frequency.value = 240; // 40Hz difference = gamma beat
       const merger = ctx.createChannelMerger(2);
-      const gainL = ctx.createGain();
-      const gainR = ctx.createGain();
+      const gainL  = ctx.createGain();
+      const gainR  = ctx.createGain();
       gainL.gain.value = gain;
       gainR.gain.value = gain;
-      left.connect(gainL);
-      right.connect(gainR);
+      left.connect(gainL);  right.connect(gainR);
       gainL.connect(merger, 0, 0);
       gainR.connect(merger, 0, 1);
       merger.connect(ctx.destination);
-      left.start();
-      right.start();
-      gammaRef.current = left; // store one to stop both via disconnect
+      left.start(); right.start();
+      gammaRef.current = left; // stop left to stop both via disconnect
     } else if (mode === 'monaural') {
       const osc = ctx.createOscillator();
       osc.frequency.value = 40;
@@ -112,13 +136,13 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
       osc.start();
       gammaRef.current = osc;
     } else {
-      // AM modulation: carrier at 200Hz, modulated at 40Hz
-      const carrier = ctx.createOscillator();
+      // AM modulation: 200Hz carrier modulated by 40Hz
+      const carrier   = ctx.createOscillator();
       const modulator = ctx.createOscillator();
-      const modGain = ctx.createGain();
-      carrier.frequency.value = 200;
+      const modGain   = ctx.createGain();
+      carrier.frequency.value   = 200;
       modulator.frequency.value = 40;
-      modGain.gain.value = 0.5;
+      modGain.gain.value        = 0.5;
       modulator.connect(modGain.gain);
       carrier.connect(gainNode);
       modulator.start();
@@ -129,33 +153,32 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
 
   const playTrack = useCallback(async (track: Track, offset = 0) => {
     const ctx = getAudioContext();
-
     stopCurrentPlayback();
     offsetRef.current = offset;
 
-    const response = await fetch(track.audio_url);
+    const response    = await fetch(track.audio_url);
     const arrayBuffer = await response.arrayBuffer();
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
     currentBufferRef.current = audioBuffer;
 
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
+    const source    = ctx.createBufferSource();
+    source.buffer   = audioBuffer;
     const musicGain = ctx.createGain();
     musicGain.gain.value = 0.85;
     source.connect(musicGain);
     musicGain.connect(ctx.destination);
     musicGainRef.current = musicGain;
-    sourceRef.current = source;
+    sourceRef.current    = source;
 
     startTimeRef.current = ctx.currentTime - offset;
     source.start(0, offset);
 
     setState((s) => ({
       ...s,
-      isPlaying: true,
+      isPlaying:    true,
       currentTrack: track,
-      duration: audioBuffer.duration,
-      progress: offset,
+      duration:     audioBuffer.duration,
+      progress:     offset,
     }));
 
     progressIntervalRef.current = setInterval(() => {
@@ -165,62 +188,64 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     }, 250);
 
     source.onended = () => {
-      if (!sourceRef.current) return;
-      const reps = repetitionCountRef.current;
+      // Guard: if source was replaced (stop was called), ignore this event
+      if (sourceRef.current !== source) return;
+
+      const reps    = repetitionCountRef.current;
       const maxReps = track.boucle_infinie ? Infinity : track.repetitions;
 
       if (reps + 1 < maxReps) {
+        // Repeat current track
         repetitionCountRef.current++;
         playTrack(track, 0);
       } else {
+        // Advance to next track (using ref — no stale closure)
         repetitionCountRef.current = 0;
-        // Advance to next track — use ref to avoid stale closure on currentIndex
-        setTracks((currentTracks) => {
-          const nextIndex = (currentIndexRef.current + 1) % currentTracks.length;
+        const currentTracks = tracksRef.current;
+        const nextIndex     = currentIndexRef.current + 1;
+
+        if (nextIndex >= currentTracks.length) {
+          // ── End of playlist — stop cleanly ──────────────────────────
+          currentIndexRef.current = 0;
+          setState((s) => ({ ...s, isPlaying: false, currentIndex: 0, currentTrack: null, progress: 0 }));
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
+        } else {
+          // ── Play next track ──────────────────────────────────────────
           currentIndexRef.current = nextIndex;
           setState((s) => ({ ...s, currentIndex: nextIndex }));
-          if (currentTracks[nextIndex]) {
-            playTrack(currentTracks[nextIndex], 0);
-          }
-          return currentTracks;
-        });
+          playTrack(currentTracks[nextIndex], 0);
+        }
       }
     };
 
-    // Start gamma
-    if (state.gammaEnabled) {
-      startGamma(ctx, state.gammaMode, state.gammaGain);
+    // Start gamma (using stable refs to avoid stale closure)
+    if (gammaEnabledRef.current) {
+      startGamma(ctx, gammaModeRef.current, gammaGainValRef.current);
     }
-  }, [getAudioContext, stopCurrentPlayback, startGamma, state.gammaEnabled, state.gammaMode, state.gammaGain]);
+  }, [getAudioContext, stopCurrentPlayback, startGamma]);
 
   const loadPlaylist = useCallback(async (type: PlaylistType) => {
     const res = await fetch(`/api/playlist/${type}`);
     if (!res.ok) return;
     const { titres } = await res.json();
     currentIndexRef.current = 0;
-    setTracks(titres ?? []);
+    updateTracks(titres ?? []);
     setState((s) => ({ ...s, playlistType: type, currentIndex: 0 }));
     return titres as Track[];
-  }, []);
+  }, [updateTracks]);
 
-  /**
-   * Play a pre-loaded track list (user-created playlists).
-   * Bypasses the API-based loadPlaylist and plays the given tracks directly.
-   */
   const playTrackList = useCallback(async (newTracks: Track[], playlistName?: string) => {
     if (!newTracks.length) return;
     currentIndexRef.current = 0;
-    setTracks(newTracks);
+    updateTracks(newTracks);
     setState((s) => ({ ...s, currentIndex: 0, customPlaylistName: playlistName }));
     repetitionCountRef.current = 0;
     await playTrack(newTracks[0], 0);
-  }, [playTrack]);
+  }, [playTrack, updateTracks]);
 
-  /**
-   * Loads and starts the playlist.
-   * Returns `true` if at least one track was found and playback started,
-   * `false` if the playlist was empty (caller can show an appropriate message).
-   */
   const play = useCallback(async (type?: PlaylistType): Promise<boolean> => {
     const playlistType = type ?? state.playlistType;
     const loaded = await loadPlaylist(playlistType);
@@ -231,6 +256,16 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     }
     return false;
   }, [loadPlaylist, playTrack, state.playlistType]);
+
+  /** Jump directly to a track by its index in the current playlist. */
+  const playAtIndex = useCallback(async (index: number) => {
+    const track = tracksRef.current[index];
+    if (!track) return;
+    currentIndexRef.current = index;
+    repetitionCountRef.current = 0;
+    setState((s) => ({ ...s, currentIndex: index }));
+    await playTrack(track, 0);
+  }, [playTrack]);
 
   const pause = useCallback(() => {
     if (!audioCtxRef.current) return;
@@ -262,26 +297,40 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
   }, [state.isPlaying, pause, resume, play]);
 
   const setGammaEnabled = useCallback((enabled: boolean) => {
+    gammaEnabledRef.current = enabled;
     setState((s) => ({ ...s, gammaEnabled: enabled }));
-    if (!enabled && gammaRef.current) {
-      try { gammaRef.current.stop(); } catch {}
-      gammaRef.current.disconnect();
-      gammaRef.current = null;
-    } else if (enabled && audioCtxRef.current && state.isPlaying) {
-      startGamma(audioCtxRef.current, state.gammaMode, state.gammaGain);
+    if (!enabled) {
+      if (gammaRef.current) {
+        try { gammaRef.current.stop(); } catch {}
+        gammaRef.current.disconnect();
+        gammaRef.current = null;
+      }
+      if (gammaGainRef.current) {
+        gammaGainRef.current.disconnect();
+        gammaGainRef.current = null;
+      }
+    } else if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      startGamma(audioCtxRef.current, gammaModeRef.current, gammaGainValRef.current);
     }
-  }, [startGamma, state.isPlaying, state.gammaMode, state.gammaGain]);
+  }, [startGamma]);
 
   const setGammaGain = useCallback((gain: number) => {
+    gammaGainValRef.current = gain;
     setState((s) => ({ ...s, gammaGain: gain }));
     if (gammaGainRef.current) {
       gammaGainRef.current.gain.value = gain;
     }
   }, []);
 
+  /** Change 40Hz mode and restart oscillators immediately with the new mode. */
   const setGammaMode = useCallback((mode: GammaMode) => {
+    gammaModeRef.current = mode;
     setState((s) => ({ ...s, gammaMode: mode }));
-  }, []);
+    // Restart gamma immediately so the user hears the difference right away
+    if (gammaEnabledRef.current && audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      startGamma(audioCtxRef.current, mode, gammaGainValRef.current);
+    }
+  }, [startGamma]);
 
   useEffect(() => {
     return () => {
@@ -299,6 +348,7 @@ export function useAudioPlayer(initialGammaGain = 0.04, initialGammaMode: GammaM
     togglePlay,
     loadPlaylist,
     playTrackList,
+    playAtIndex,
     setGammaEnabled,
     setGammaGain,
     setGammaMode,

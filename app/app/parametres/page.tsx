@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { LogOut } from 'lucide-react';
+import { storeLangue, type Langue } from '@/lib/i18n';
 
 interface Profil {
   langue: 'fr' | 'es' | 'en';
@@ -58,6 +59,10 @@ export default function ParametresPage() {
       body: JSON.stringify(updates),
     });
     setSaving(false);
+    // If language was updated, sync it to localStorage for immediate UI update
+    if (updates.langue) {
+      storeLangue(updates.langue as Langue);
+    }
     toast({ title: 'Enregistré' });
   }
 
