@@ -78,18 +78,52 @@ export default function MessagesPage() {
   }
 
   async function startRecording() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    chunksRef.current = [];
-    recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-      setRecordedBlob(blob);
-      stream.getTracks().forEach(t => t.stop());
-    };
-    mediaRecorderRef.current = recorder;
-    recorder.start();
-    setRecording(true);
+    try {
+      // Vérifie que l'API est disponible (HTTPS requis en production)
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast({
+          title: t('error_title'),
+          description: 'L\'enregistrement audio nécessite HTTPS et un navigateur compatible (Chrome, Firefox, Safari).',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setRecordedBlob(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch (err) {
+      const name = (err as { name?: string })?.name ?? '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        toast({
+          title: t('mic_denied'),
+          description: t('mic_denied_desc'),
+          variant: 'destructive',
+        });
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        toast({
+          title: t('mic_not_found'),
+          description: t('mic_not_found_desc'),
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: t('error_title'),
+          description: t('error_generic'),
+          variant: 'destructive',
+        });
+      }
+      console.error('[messages] startRecording error:', err);
+    }
   }
 
   function stopRecording() {

@@ -346,19 +346,19 @@ export default function TitresPage() {
             <ol className="space-y-3 text-sm text-[#2C2C2A]">
               <li className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#4A6FA5] text-white text-xs font-bold flex items-center justify-center">1</span>
-                <span>Téléchargez le fichier audio acheté sur votre appareil.</span>
+                <span>{t('purchase_step1')}</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#4A6FA5] text-white text-xs font-bold flex items-center justify-center">2</span>
                 <span>
-                  Déplacez-le dans votre dossier <strong>NeuroWake Music</strong> :<br />
+                  {t('purchase_step2_intro')}<br />
                   <span className="text-xs text-muted-foreground font-mono">Windows : Musique\NeuroWake Music\</span><br />
                   <span className="text-xs text-muted-foreground font-mono">Mac : ~/Musique/NeuroWake Music/</span>
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#4A6FA5] text-white text-xs font-bold flex items-center justify-center">3</span>
-                <span>Revenez ici et cliquez <strong>Associer le fichier</strong> à côté du titre.</span>
+                <span>{t('purchase_step3')}</span>
               </li>
             </ol>
             <Button className="w-full bg-[#4A6FA5] text-base h-11" onClick={() => setPurchaseDialogOpen(false)}>
@@ -380,23 +380,21 @@ export default function TitresPage() {
 
           <div className="flex items-center gap-3">
             <HardDrive className="h-5 w-5 text-[#4A6FA5] flex-shrink-0" />
-            <p className="font-semibold text-[#2C2C2A]">📁 Dossier NeuroWake Music</p>
+            <p className="font-semibold text-[#2C2C2A]">{t('folder_section_title')}</p>
           </div>
 
           {/* ⚠️ Avertissement permanent */}
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-amber-800">
-              <strong>Obligatoire :</strong> tous vos fichiers audio doivent être placés dans le
-              dossier <strong>NeuroWake Music</strong>. L&apos;application ne peut lire que les
-              fichiers présents dans ce dossier autorisé.
+              <strong>{t('folder_required_label')}</strong> {t('folder_required_desc')}
             </p>
           </div>
 
           {/* Vérification initiale */}
           {folderSetup === null && (
             <p className="text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-3 w-3 animate-spin" /> Vérification…
+              <Loader2 className="h-3 w-3 animate-spin" /> {t('folder_checking')}
             </p>
           )}
 
@@ -423,14 +421,10 @@ export default function TitresPage() {
               {dirPickerSupported && (
                 <div className="bg-white border border-[#4A6FA5]/30 rounded-xl p-4 space-y-3">
                   <p className="text-sm font-medium text-[#2C2C2A]">
-                    🖥️ Création automatique disponible sur votre navigateur
+                    {t('folder_auto_title')}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Cliquez sur le bouton ci-dessous pour autoriser l&apos;application à créer le
-                    dossier sur votre appareil. Une <strong>fenêtre système</strong> s&apos;ouvrira :
-                    naviguez jusqu&apos;à votre dossier <strong>Musique</strong>, puis cliquez{' '}
-                    <strong>Sélectionner</strong>. Le sous-dossier <strong>NeuroWake Music</strong>{' '}
-                    sera créé automatiquement à l&apos;intérieur.
+                    {t('folder_auto_desc')}
                   </p>
                   <Button
                     size="lg"
@@ -445,8 +439,7 @@ export default function TitresPage() {
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    En cliquant, vous autorisez l&apos;application à créer et accéder uniquement au
-                    dossier <strong>NeuroWake Music</strong>. Aucun autre fichier ou dossier n&apos;est accessible.
+                    {t('folder_permission_note')}
                   </p>
                 </div>
               )}
@@ -455,7 +448,7 @@ export default function TitresPage() {
               <div className={dirPickerSupported ? 'border-t border-[#4A6FA5]/20 pt-4' : ''}>
                 {dirPickerSupported && (
                   <p className="text-xs text-muted-foreground mb-3 font-medium">
-                    Sur un autre appareil (Safari, Firefox, iOS…) créez le dossier manuellement :
+                    {t('folder_manual_intro')}
                   </p>
                 )}
 
@@ -465,14 +458,14 @@ export default function TitresPage() {
                   {(platform === 'windows' || platform === 'other') && (
                     <details className="bg-white border rounded-lg" open={platform === 'windows'}>
                       <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
-                        <span>🪟</span> Windows — PC ou tablette Surface
+                        {t('folder_win_title')}
                       </summary>
                       <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
-                        <li>Ouvrez l&apos;<strong>Explorateur de fichiers</strong> (touche Win&nbsp;+&nbsp;E)</li>
-                        <li>Dans le panneau gauche, cliquez sur <strong>Musique</strong></li>
-                        <li>Clic droit dans la zone vide → <strong>Nouveau → Dossier</strong></li>
-                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
-                        <li>Appuyez sur <strong>Entrée</strong> pour valider</li>
+                        <li>{t('folder_win_s1')}</li>
+                        <li>{t('folder_win_s2')}</li>
+                        <li>{t('folder_win_s3')}</li>
+                        <li>{t('folder_step4_type')} <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>{t('folder_win_s5')}</li>
                       </ol>
                     </details>
                   )}
@@ -481,14 +474,14 @@ export default function TitresPage() {
                   {(platform === 'macos' || platform === 'other') && (
                     <details className="bg-white border rounded-lg" open={platform === 'macos'}>
                       <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
-                        <span>🍎</span> Mac — MacBook ou iMac
+                        {t('folder_mac_title')}
                       </summary>
                       <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
-                        <li>Ouvrez le <strong>Finder</strong></li>
-                        <li>Dans la barre latérale, cliquez sur <strong>Musique</strong></li>
-                        <li>Menu Fichier → <strong>Nouveau dossier</strong> (ou <kbd>Cmd + Maj + N</kbd>)</li>
-                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
-                        <li>Appuyez sur <strong>Entrée</strong></li>
+                        <li>{t('folder_mac_s1')}</li>
+                        <li>{t('folder_mac_s2')}</li>
+                        <li>{t('folder_mac_s3')}</li>
+                        <li>{t('folder_step4_type')} <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>{t('folder_mac_s5')}</li>
                       </ol>
                     </details>
                   )}
@@ -497,14 +490,14 @@ export default function TitresPage() {
                   {(platform === 'ios' || platform === 'other') && (
                     <details className="bg-white border rounded-lg" open={platform === 'ios'}>
                       <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
-                        <span>🍏</span> iPhone ou iPad
+                        {t('folder_ios_title')}
                       </summary>
                       <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
-                        <li>Ouvrez l&apos;app <strong>Fichiers</strong> (icône bleue)</li>
-                        <li>Appuyez sur <strong>Sur mon iPhone</strong> (ou Sur mon iPad)</li>
-                        <li>Appui long dans la zone vide → <strong>Nouveau dossier</strong></li>
-                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
-                        <li>Appuyez sur <strong>Terminé</strong></li>
+                        <li>{t('folder_ios_s1')}</li>
+                        <li>{t('folder_ios_s2')}</li>
+                        <li>{t('folder_ios_s3')}</li>
+                        <li>{t('folder_step4_type')} <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>{t('folder_ios_s5')}</li>
                       </ol>
                     </details>
                   )}
@@ -513,14 +506,14 @@ export default function TitresPage() {
                   {(platform === 'android' || platform === 'other') && (
                     <details className="bg-white border rounded-lg" open={platform === 'android'}>
                       <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
-                        <span>🤖</span> Android — téléphone ou tablette
+                        {t('folder_android_title')}
                       </summary>
                       <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
-                        <li>Ouvrez l&apos;app <strong>Mes fichiers</strong> ou <strong>Gestionnaire de fichiers</strong></li>
-                        <li>Allez dans <strong>Stockage interne → Musique</strong></li>
-                        <li>Appuyez sur <strong>+</strong> ou <strong>Nouveau dossier</strong></li>
-                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
-                        <li>Confirmez avec <strong>OK</strong> ou <strong>Créer</strong></li>
+                        <li>{t('folder_android_s1')}</li>
+                        <li>{t('folder_android_s2')}</li>
+                        <li>{t('folder_android_s3')}</li>
+                        <li>{t('folder_step4_type')} <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>{t('folder_android_s5')}</li>
                       </ol>
                     </details>
                   )}
@@ -534,25 +527,25 @@ export default function TitresPage() {
           <div className="space-y-2 text-sm text-[#2C2C2A] border-t border-[#4A6FA5]/20 pt-3">
             <div className="flex gap-2">
               <span className="text-[#4A6FA5] font-bold flex-shrink-0">→</span>
-              <p>Placez <strong>tous vos fichiers audio</strong> (MP3, WAV, M4A, AAC, FLAC…) dans le dossier <strong>NeuroWake Music</strong>.</p>
+              <p>{t('folder_rule_audio')}</p>
             </div>
             <div className="flex gap-2">
               <span className="text-[#4A6FA5] font-bold flex-shrink-0">→</span>
               <p>
-                Après un achat iTunes / Amazon, téléchargez le fichier dans ce dossier.{' '}
+                {t('folder_rule_purchase')}{' '}
                 <button onClick={() => setPurchaseDialogOpen(true)} className="text-[#4A6FA5] underline hover:no-underline inline-flex items-center gap-1">
-                  <Info className="h-3 w-3" />Comment faire ?
+                  <Info className="h-3 w-3" />{t('folder_how_to_btn')}
                 </button>
               </p>
             </div>
             <div className="flex gap-2">
               <span className="text-[#4A6FA5] font-bold flex-shrink-0">→</span>
-              <p>Cliquez <strong className="text-[#4A6FA5]">Associer le fichier</strong> à côté de chaque titre pour le lier.</p>
+              <p>{t('folder_rule_assoc')}</p>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground">
-            🔒 <strong>Aucun fichier musical n&apos;est envoyé sur internet.</strong> Tout reste sur votre appareil.
+            {t('folder_privacy')}
           </p>
         </CardContent>
       </Card>

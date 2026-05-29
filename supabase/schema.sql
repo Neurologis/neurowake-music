@@ -37,7 +37,7 @@ create table titres_audio (
   artiste text not null,
   annee integer,
   pochette_url text,
-  storage_path text not null,
+  storage_path text not null default '',
   duree_secondes integer,
   format text,
   taille_octets bigint,
@@ -46,6 +46,8 @@ create table titres_audio (
   note_aidant text,
   ordre integer default 0,
   dans_playlist_favorite boolean default true,
+  phase_recommandee text check (phase_recommandee in
+    ('matin','soins','repas','apres-midi','coucher')),
   musicbrainz_id text,
   created_at timestamptz default now()
 );
@@ -59,6 +61,8 @@ create table titres_recommandes (
   annee integer,
   pochette_url text,
   musicbrainz_id text,
+  phase_recommandee text check (phase_recommandee in
+    ('matin','soins','repas','apres-midi','coucher')),
   statut text check (statut in
     ('propose','valide','refuse','incertain','importe'))
     default 'propose',

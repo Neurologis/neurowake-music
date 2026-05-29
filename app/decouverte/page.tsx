@@ -207,48 +207,79 @@ export default function DecouvertePage() {
   /**
    * Associate a local audio file with a recommended titre.
    * The file stays on the user's device — only metadata is saved to the server.
+   *
+   * IMPORTANT: We create the DB record FIRST so we can use the real UUID as the
+   * IndexedDB key for the FSA file handle. This makes the association persistent
+   * across browser sessions (no more lost files after page reload).
+   *
    * Steps:
-   *   1. Open file picker (FSA on desktop, <input> on mobile)
-   *   2. Create a titres_audio DB record (metadata only)
-   *   3. Associate the file in localStore (session/persistent)
-   *   4. Mark the recommended titre as 'importe'
+   *   1. Create titres_audio DB record (empty filename for now)
+   *   2. Open file picker with the REAL titre ID → FSA handle stored under real ID
+   *   3. If user cancels → delete the DB record
+   *   4. PATCH the DB record with the filename
+   *   5. Copy file to NeuroWake Music folder
+   *   6. Mark the recommended titre as 'valide'
    */
   async function importerFichier(titre: Titre) {
     setUploading(titre.id);
     try {
-      // Open file picker and get the selected file
-      const file = await localStore.pickAndAssociate(`tmp-${titre.id}`);
-      if (!file) { setUploading(null); return; }
-
-      // Create a titres_audio record with metadata only (no upload)
-      const res = await fetch('/api/titres', {
-        method: 'POST',
+      // Step 1 — Create DB record first (filename will be patched after pick)
+      const createRes = await fetch('/api/titres', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          titre:    titre.titre,
-          artiste:  titre.artiste,
-          annee:    titre.annee,
-          filename: file.name,
+          titre:             titre.titre,
+          artiste:           titre.artiste,
+          annee:             titre.annee,
+          filename:          '',
+          phase_recommandee: titre.phase_recommandee ?? null,
         }),
       });
 
-      if (!res.ok) {
+      if (!createRes.ok) {
         toast({ title: 'Erreur', description: "Impossible d'enregistrer le titre.", variant: 'destructive' });
-        setUploading(null);
         return;
       }
 
-      const newTitre = await res.json();
+      const newTitre = await createRes.json();
 
-      // Re-associate the file with the real DB ID (the tmp- key is discarded)
-      await localStore.removeAssociation(`tmp-${titre.id}`);
-      await localStore.associateFile(newTitre.id, file);
+      // Step 2 — Pick file using the REAL ID so FSA handle is stored persistently
+      const file = await localStore.pickAndAssociate(newTitre.id);
+      if (!file) {
+        // User cancelled — clean up the orphan DB record
+        await fetch(`/api/titres/${newTitre.id}`, { method: 'DELETE' });
+        return;
+      }
 
-      // Mark the recommended titre as imported
-      await valider(titre.id, 'valide');
-      setAllTitres((t) => t.map((x) => (x.id === titre.id ? { ...x, statut: 'importe' } : x)));
-      toast({ title: 'Titre associé ✅', description: `${titre.titre} — fichier sur votre appareil` });
-    } catch {
+      // Step 3 — Patch DB with the actual filename
+      await fetch(`/api/titres/${newTitre.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storage_path: file.name }),
+      });
+
+      // Step 4 — Copy to NeuroWake Music folder (best-effort)
+      const copied = await localStore.copyToMusicFolder(file);
+      if (copied) {
+        console.log('[découverte] Fichier copié dans NeuroWake Music :', file.name);
+      }
+
+      // Step 5 — Mark titre_recommande as valide (set directly, no toggle)
+      await fetch('/api/decouverte/valider', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titre_id: titre.id, statut: 'valide' }),
+      });
+      setAllTitres(ts => ts.map(x => x.id === titre.id ? { ...x, statut: 'importe' } : x));
+
+      toast({
+        title: 'Titre associé ✅',
+        description: copied
+          ? `${titre.titre} — copié dans NeuroWake Music`
+          : `${titre.titre} — fichier sur votre appareil`,
+      });
+    } catch (err) {
+      console.error('[découverte] importerFichier error:', err);
       toast({ title: 'Erreur', description: "Impossible d'associer le fichier.", variant: 'destructive' });
     } finally {
       setUploading(null);

@@ -31,11 +31,14 @@ export async function GET(req: NextRequest) {
  * The actual audio file stays on the user's device; only metadata is saved.
  * `filename` is stored in `storage_path` as a local hint for file re-association.
  */
+const VALID_PHASES = ['matin', 'soins', 'repas', 'apres-midi', 'coucher'] as const;
+
 const createSchema = z.object({
-  titre:    z.string().min(1).max(200),
-  artiste:  z.string().min(1).max(200).default('Inconnu'),
-  annee:    z.number().int().min(1900).max(2030).optional().nullable(),
-  filename: z.string().max(500).optional().default(''),
+  titre:             z.string().min(1).max(200),
+  artiste:           z.string().min(1).max(200).default('Inconnu'),
+  annee:             z.number().int().min(1900).max(2030).optional().nullable(),
+  filename:          z.string().max(500).optional().default(''),
+  phase_recommandee: z.enum(VALID_PHASES).optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -57,17 +60,22 @@ export async function POST(req: NextRequest) {
     .limit(1)
     .single();
 
+  // phase_recommandee is added by migration 001; cast to any until Supabase types are regenerated
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertRow: any = {
+    user_id:               userId,
+    titre:                 parsed.data.titre,
+    artiste:               parsed.data.artiste,
+    annee:                 parsed.data.annee ?? null,
+    storage_path:          parsed.data.filename || '',
+    ordre:                 (maxRow?.ordre ?? 0) + 1,
+    dans_playlist_favorite: true,
+  };
+  if (parsed.data.phase_recommandee) insertRow.phase_recommandee = parsed.data.phase_recommandee;
+
   const { data: inserted, error: dbError } = await supabase
     .from('titres_audio')
-    .insert({
-      user_id:               userId,
-      titre:                 parsed.data.titre,
-      artiste:               parsed.data.artiste,
-      annee:                 parsed.data.annee ?? null,
-      storage_path:          parsed.data.filename || '',   // filename as local hint
-      ordre:                 (maxRow?.ordre ?? 0) + 1,
-      dans_playlist_favorite: true,
-    })
+    .insert(insertRow)
     .select()
     .single();
 

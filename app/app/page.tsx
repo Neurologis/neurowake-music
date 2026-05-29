@@ -6,7 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-  Play, Pause, Music, ListMusic, Plus, Trash2, Loader2, SkipForward,
+  Play, Pause, Music, ListMusic, Plus, Trash2, Loader2, SkipForward, Heart,
 } from 'lucide-react';
 import { useAudioPlayer, type PlaylistType, type GammaMode } from '@/hooks/use-audio-player';
 import { formatDuration, getCurrentPhase } from '@/lib/utils';
@@ -77,6 +77,18 @@ interface PlaylistTrack {
   boucle_infinie: boolean;
 }
 
+/**
+ * Resolve a playlist from the API into playable tracks.
+ *
+ * For each track returned by the server we try to get a local object URL:
+ *  1. Fast path: URL already in session cache (getUrl returns immediately).
+ *  2. FSA handle with 'granted' permission: getUrl silently restores.
+ *  3. FSA handle with 'prompt' permission: requestPermission() is called in
+ *     a user-gesture context (the caller is always a button click handler).
+ *
+ * Tracks with no local file (never associated, or permission denied) are
+ * silently skipped — the player can still play the rest of the list.
+ */
 async function resolvePlaylist(apiUrl: string): Promise<PlaylistTrack[]> {
   const res = await fetch(apiUrl);
   if (!res.ok) return [];
@@ -85,7 +97,13 @@ async function resolvePlaylist(apiUrl: string): Promise<PlaylistTrack[]> {
 
   const playable: PlaylistTrack[] = [];
   for (const t of titres) {
-    const url = await localStore.getUrl(t.id);
+    // Try fast path first
+    let url = await localStore.getUrl(t.id);
+    // If null and there's a stored handle with 'prompt' permission, ask now
+    // (safe because resolvePlaylist is always called from a user gesture)
+    if (!url) {
+      url = await localStore.requestPermission(t.id);
+    }
     if (url) {
       playable.push({
         id:             t.id,
@@ -240,21 +258,35 @@ export default function PlayerPage() {
   }
 
   async function createPlaylist() {
-    if (!newPlaylistName.trim()) return;
+    const name = newPlaylistName.trim();
+    if (!name) {
+      toast({ title: t('error_title'), description: t('playlist_name_placeholder'), variant: 'destructive' });
+      createInputRef.current?.focus();
+      return;
+    }
     setCreatingPlaylist(true);
     try {
       const res = await fetch('/api/playlists', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ nom: newPlaylistName.trim() }),
+        body:    JSON.stringify({ nom: name }),
       });
       if (res.ok) {
         const { playlist } = await res.json();
         setUserPlaylists(p => [...p, playlist]);
         setNewPlaylistName('');
-        setShowCreatePlaylist(false); // ← close dialog on success
+        setShowCreatePlaylist(false);
         toast({ title: t('playlist_created_ok'), description: `"${playlist.nom}"` });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          title:       t('error_title'),
+          description: (err as { error?: string }).error ?? t('error_generic'),
+          variant:     'destructive',
+        });
       }
+    } catch {
+      toast({ title: t('error_title'), description: t('error_generic'), variant: 'destructive' });
     } finally {
       setCreatingPlaylist(false);
     }
@@ -293,23 +325,29 @@ export default function PlayerPage() {
 
       {/* ── Sélecteur de playlist par phase — texte ≥18px, icônes ≥28px ─── */}
       <div className="grid grid-cols-3 gap-2">
-        {PLAYLIST_TYPES.map((type) => (
-          <button
-            key={type}
-            onClick={() => handlePlay(type)}
-            className={`
-              flex flex-col items-center justify-center gap-1
-              h-20 rounded-xl border-2 font-semibold transition-all
-              ${activePlaylist === type
-                ? 'bg-[#4A6FA5] border-[#4A6FA5] text-white shadow-md'
-                : 'bg-white border-[#EDEAE3] text-[#2C2C2A] hover:border-[#4A6FA5] hover:bg-[#4A6FA5]/5'
+        {PLAYLIST_TYPES.map((type) => {
+          const isActive = activePlaylist === type;
+          return (
+            <button
+              key={type}
+              onClick={() => handlePlay(type)}
+              className={`
+                flex flex-col items-center justify-center gap-1
+                h-20 rounded-xl border-2 font-semibold transition-all
+                ${isActive
+                  ? 'bg-[#4A6FA5] border-[#4A6FA5] text-white shadow-md'
+                  : 'bg-white border-[#EDEAE3] text-[#2C2C2A] hover:border-[#4A6FA5] hover:bg-[#4A6FA5]/5'
+                }
+              `}
+            >
+              {type === 'soins'
+                ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#4A6FA5]'}`} />
+                : <span className="text-3xl leading-none">{t(PHASE_EMOJI_KEYS[type])}</span>
               }
-            `}
-          >
-            <span className="text-3xl leading-none">{t(PHASE_EMOJI_KEYS[type])}</span>
-            <span className="text-[15px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
-          </button>
-        ))}
+              <span className="text-[15px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Mes playlists ────────────────────────────────────────────────── */}
