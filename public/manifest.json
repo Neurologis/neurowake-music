@@ -1,0 +1,28 @@
+{
+  "name": "NeuroWake Music",
+  "short_name": "NeuroWake",
+  "description": "La musique qui lui parle vraiment",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#4A6FA5",
+  "theme_color": "#4A6FA5",
+  "lang": "fr",
+  "categories": ["music", "health"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/logo-neurowake.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-neurowake.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
