@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import { LogOut } from 'lucide-react';
 import { storeLangue, type Langue } from '@/lib/i18n';
+import { useT } from '@/hooks/use-t';
 
 interface Profil {
   langue: 'fr' | 'es' | 'en';
@@ -30,6 +31,7 @@ interface Abonnement {
 
 export default function ParametresPage() {
   const router = useRouter();
+  const { t }  = useT();
   const [profil, setProfil] = useState<Profil | null>(null);
   const [abonnement, setAbonnement] = useState<Abonnement | null>(null);
   const [saving, setSaving] = useState(false);
@@ -54,16 +56,15 @@ export default function ParametresPage() {
     setProfil(updated);
     setSaving(true);
     await fetch('/api/profile', {
-      method: 'PATCH',
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body:    JSON.stringify(updates),
     });
     setSaving(false);
-    // If language was updated, sync it to localStorage for immediate UI update
     if (updates.langue) {
       storeLangue(updates.langue as Langue);
     }
-    toast({ title: 'Enregistré' });
+    toast({ title: t('settings_saved') });
   }
 
   async function handleBillingPortal() {
@@ -88,88 +89,100 @@ export default function ParametresPage() {
   }
 
   async function handleDeleteAccount() {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement votre compte ? Cette action est irréversible.')) return;
+    if (!confirm(t('settings_delete_confirm'))) return;
     await supabase.auth.signOut();
     router.push('/');
   }
 
-  const statutLabel = {
-    actif: 'Actif',
-    trial: 'Période d\'essai',
-    inactif: 'Inactif',
-    suspendu: 'Suspendu',
+  const statutLabel: Record<string, string> = {
+    actif:    t('settings_active'),
+    trial:    t('settings_trial'),
+    inactif:  t('settings_inactive'),
+    suspendu: t('settings_suspended'),
   };
 
-  const statutColor = {
-    actif: 'bg-[#7BA05B] text-white',
-    trial: 'bg-amber-100 text-amber-800',
-    inactif: 'bg-gray-100 text-gray-600',
+  const statutColor: Record<string, string> = {
+    actif:    'bg-[#7BA05B] text-white',
+    trial:    'bg-amber-100 text-amber-800',
+    inactif:  'bg-gray-100 text-gray-600',
     suspendu: 'bg-red-100 text-red-800',
+  };
+
+  const volLabels: Record<string, string> = {
+    douce:    t('gamma_soft'),
+    normale:  t('gamma_normal'),
+    sensible: t('gamma_loud'),
   };
 
   return (
     <div className="space-y-6 max-w-xl">
-      <h1 className="text-2xl font-bold text-[#2C2C2A]">Paramètres</h1>
+      <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('settings_title')}</h1>
 
-      {/* Langue */}
+      {/* ── Langue ────────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader><CardTitle>Langue de l&apos;interface</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">{t('settings_lang')}</CardTitle></CardHeader>
         <CardContent>
-          <Select value={profil?.langue ?? 'fr'} onValueChange={(v) => saveProfile({ langue: v as 'fr' | 'es' | 'en' })}>
-            <SelectTrigger>
+          <Select value={profil?.langue ?? 'fr'} onValueChange={(v) => saveProfile({ langue: v as Langue })}>
+            <SelectTrigger className="text-base h-12">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="fr">🇫🇷 Français</SelectItem>
-              <SelectItem value="es">🇪🇸 Español</SelectItem>
-              <SelectItem value="en">🇬🇧 English</SelectItem>
+              <SelectItem value="fr" className="text-base">🇫🇷 Français</SelectItem>
+              <SelectItem value="es" className="text-base">🇪🇸 Español</SelectItem>
+              <SelectItem value="en" className="text-base">🇬🇧 English</SelectItem>
             </SelectContent>
           </Select>
         </CardContent>
       </Card>
 
-      {/* Profil sonore */}
+      {/* ── Profil sonore ─────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader><CardTitle>Profil sonore</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+        <CardHeader><CardTitle className="text-lg">{t('settings_sound')}</CardTitle></CardHeader>
+        <CardContent className="space-y-5">
           <div>
-            <p className="text-sm font-medium mb-2">Sensibilité au volume</p>
+            <p className="text-base font-medium mb-3">{t('settings_vol_sens')}</p>
             <div className="flex gap-2">
               {(['douce', 'normale', 'sensible'] as const).map((v) => (
                 <Button
                   key={v}
                   size="sm"
                   variant={profil?.sensibilite_volume === v ? 'default' : 'outline'}
-                  className={profil?.sensibilite_volume === v ? 'bg-[#4A6FA5]' : ''}
+                  className={`text-base h-10 px-4 ${profil?.sensibilite_volume === v ? 'bg-[#4A6FA5]' : ''}`}
                   onClick={() => saveProfile({ sensibilite_volume: v })}
                 >
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                  {volLabels[v]}
                 </Button>
               ))}
             </div>
           </div>
+
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Sensibilité auditive particulière</p>
-              <p className="text-xs text-muted-foreground">Désactive le mode binaural</p>
+              <p className="text-base font-medium">{t('settings_hearing')}</p>
+              <p className="text-sm text-muted-foreground">{t('settings_hearing_desc')}</p>
             </div>
             <Switch
               checked={profil?.acouphenes ?? false}
               onCheckedChange={(v) => saveProfile({ acouphenes: v })}
             />
           </div>
-          <Button variant="outline" onClick={() => router.push('/onboarding')} className="w-full">
-            Refaire l&apos;onboarding
+
+          <Button
+            variant="outline"
+            onClick={() => router.push('/onboarding')}
+            className="w-full text-base h-11"
+          >
+            {t('settings_redo')}
           </Button>
         </CardContent>
       </Card>
 
-      {/* Audio */}
+      {/* ── Audio 40Hz ────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader><CardTitle>Audio 40Hz</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">{t('settings_40hz')}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <p className="text-sm font-medium mb-2">Mode 40Hz</p>
+            <p className="text-base font-medium mb-3">{t('settings_40hz_mode')}</p>
             <div className="flex gap-2 flex-wrap">
               {(['binaural', 'monaural', 'am'] as const).map((mode) => (
                 <Button
@@ -177,10 +190,10 @@ export default function ParametresPage() {
                   size="sm"
                   disabled={profil?.acouphenes && mode === 'binaural'}
                   variant={profil?.gamma_mode === mode ? 'default' : 'outline'}
-                  className={profil?.gamma_mode === mode ? 'bg-[#4A6FA5]' : ''}
+                  className={`text-base h-10 px-4 ${profil?.gamma_mode === mode ? 'bg-[#4A6FA5]' : ''}`}
                   onClick={() => saveProfile({ gamma_mode: mode })}
                 >
-                  {mode === 'binaural' ? 'Binaural' : mode === 'monaural' ? 'Monaural' : 'Modulation AM'}
+                  {mode === 'binaural' ? t('gamma_binaural') : mode === 'monaural' ? t('gamma_monaural') : t('gamma_am')}
                 </Button>
               ))}
             </div>
@@ -188,78 +201,82 @@ export default function ParametresPage() {
         </CardContent>
       </Card>
 
-      {/* Abonnement */}
+      {/* ── Abonnement ────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader><CardTitle>Abonnement</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">{t('settings_sub')}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {abonnement ? (
             <>
               <div className="flex items-center justify-between">
-                <p className="font-medium">Statut</p>
-                <Badge className={statutColor[abonnement.statut]}>
-                  {statutLabel[abonnement.statut]}
+                <p className="text-base font-medium">{t('settings_status')}</p>
+                <Badge className={statutColor[abonnement.statut] ?? 'bg-gray-100'}>
+                  {statutLabel[abonnement.statut] ?? abonnement.statut}
                 </Badge>
               </div>
               {abonnement.statut === 'trial' && abonnement.trial_ends_at && (
                 <p className="text-sm text-muted-foreground">
-                  Essai gratuit jusqu&apos;au {formatDate(abonnement.trial_ends_at)}
+                  {t('settings_trial_until')} {formatDate(abonnement.trial_ends_at)}
                 </p>
               )}
               {abonnement.statut === 'actif' && abonnement.current_period_end && (
                 <p className="text-sm text-muted-foreground">
-                  Renouvellement le {formatDate(abonnement.current_period_end)}
+                  {t('settings_renew')} {formatDate(abonnement.current_period_end)}
                 </p>
               )}
               {abonnement.ls_customer_id ? (
-                <Button onClick={handleBillingPortal} variant="outline" className="w-full">
-                  Gérer mon abonnement
+                <Button onClick={handleBillingPortal} variant="outline" className="w-full text-base h-11">
+                  {t('settings_sub_manage')}
                 </Button>
               ) : (
-                <Button onClick={handleSubscribe} className="w-full bg-[#4A6FA5]">
-                  S&apos;abonner
+                <Button onClick={handleSubscribe} className="w-full bg-[#4A6FA5] text-base h-11">
+                  {t('settings_subscribe')}
                 </Button>
               )}
             </>
           ) : (
-            <Button onClick={handleSubscribe} className="w-full bg-[#4A6FA5]">
-              S&apos;abonner — 14 jours gratuits
+            <Button onClick={handleSubscribe} className="w-full bg-[#4A6FA5] text-base h-11">
+              {t('settings_sub_trial_14')}
             </Button>
           )}
         </CardContent>
       </Card>
 
-      {/* Déconnexion — visible sur mobile via cette page */}
+      {/* ── Déconnexion ───────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="p-4">
           <Button
             variant="outline"
-            className="w-full flex items-center gap-2 text-[#4A6FA5] border-[#4A6FA5] hover:bg-[#4A6FA5]/10"
+            className="w-full flex items-center gap-2 text-[#4A6FA5] border-[#4A6FA5] hover:bg-[#4A6FA5]/10 text-base h-11"
             onClick={handleLogout}
           >
-            <LogOut className="h-4 w-4" />
-            Se déconnecter
+            <LogOut className="h-5 w-5" />
+            {t('settings_logout')}
           </Button>
         </CardContent>
       </Card>
 
-      {/* RGPD */}
+      {/* ── RGPD ──────────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader><CardTitle>Données personnelles</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">{t('settings_data')}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <Button variant="outline" className="w-full">
-            Télécharger mes données
+          <Button variant="outline" className="w-full text-base h-11">
+            {t('settings_download')}
           </Button>
           <Separator />
           <Button
             variant="outline"
-            className="w-full text-destructive border-destructive hover:bg-destructive hover:text-white"
+            className="w-full text-destructive border-destructive hover:bg-destructive hover:text-white text-base h-11"
             onClick={handleDeleteAccount}
           >
-            Supprimer mon compte
+            {t('settings_delete')}
           </Button>
-          <p className="text-xs text-muted-foreground">Cette action est irréversible. Toutes vos données seront supprimées.</p>
+          <p className="text-sm text-muted-foreground">{t('settings_delete_irrev')}</p>
         </CardContent>
       </Card>
+
+      {saving && (
+        <p className="text-center text-sm text-muted-foreground">{t('saving_label')}</p>
+      )}
     </div>
   );
 }

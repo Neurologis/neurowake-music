@@ -15,6 +15,7 @@ import {
 import { formatDuration } from '@/lib/utils';
 import * as localStore from '@/lib/local-audio-store';
 import type { FileStatus } from '@/lib/local-audio-store';
+import { useT } from '@/hooks/use-t';
 
 interface Titre {
   id: string;
@@ -52,6 +53,7 @@ const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.aac', '.m4a', '.flac', '.ogg', '.wma
 
 export default function TitresPage() {
   const router = useRouter();
+  const { t }  = useT();
 
   const [titres, setTitres]             = useState<Titre[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -98,12 +100,12 @@ export default function TitresPage() {
       if (handle) {
         setFolderSetup(true);
         toast({
-          title: '📁 Dossier créé ✅',
-          description: 'Le dossier "NeuroWake Music" est prêt. Les prochains sélecteurs de fichiers s\'ouvriront directement dedans.',
+          title: t('folder_created_ok'),
+          description: t('folder_created_desc'),
         });
       }
     } catch {
-      toast({ title: 'Erreur', description: 'Impossible de créer le dossier.', variant: 'destructive' });
+      toast({ title: t('error_title'), description: t('error_generic'), variant: 'destructive' });
     } finally {
       setSettingUpFolder(false);
     }
@@ -154,13 +156,13 @@ export default function TitresPage() {
       // Try to copy the file to the NeuroWake Music folder
       const copied = await localStore.copyToMusicFolder(file);
       if (copied) {
-        toast({ title: 'Fichier associé ✅', description: `${file.name} — copié dans NeuroWake Music` });
+        toast({ title: t('titre_added_toast'), description: `${file.name} — ${t('titre_added_copied')}` });
       } else {
-        toast({ title: 'Fichier associé ✅', description: file.name });
+        toast({ title: t('titre_added_toast'), description: file.name });
       }
     } catch (err) {
       console.error('[titres] associerFichier error:', err);
-      toast({ title: 'Erreur', description: "Impossible d'associer le fichier.", variant: 'destructive' });
+      toast({ title: t('error_title'), description: t('error_assoc'), variant: 'destructive' });
     } finally {
       setAssociating(null);
     }
@@ -172,7 +174,7 @@ export default function TitresPage() {
       const url = await localStore.requestPermission(titreId);
       if (url) {
         setFileStatus(s => ({ ...s, [titreId]: 'ok' }));
-        toast({ title: 'Accès autorisé ✅' });
+        toast({ title: t('access_granted_toast') });
       } else {
         await associerFichier(titreId);
         return;
@@ -219,9 +221,9 @@ export default function TitresPage() {
       setTitres(ts => [newTitre, ...ts]);
       setFileStatus(s => ({ ...s, [newTitre.id]: 'ok' }));
       setPendingAdd(null);
-      toast({ title: 'Titre ajouté ✅', description: `${newTitre.titre} — ${newTitre.artiste}` });
+      toast({ title: t('titre_new_added'), description: `${newTitre.titre} — ${newTitre.artiste}` });
     } catch {
-      toast({ title: 'Erreur', description: "Impossible d'enregistrer le titre.", variant: 'destructive' });
+      toast({ title: t('error_title'), description: t('error_save_titre'), variant: 'destructive' });
     } finally {
       setSavingNew(false);
     }
@@ -236,8 +238,8 @@ export default function TitresPage() {
       body: JSON.stringify({ titre_id: titreId }),
     });
     toast(res.ok
-      ? { title: 'Titre ajouté', description: 'Ajouté à la playlist.' }
-      : { title: 'Erreur', description: "Impossible d'ajouter.", variant: 'destructive' }
+      ? { title: t('titre_added_to_pl_toast'), description: t('added_to_pl_desc') }
+      : { title: t('error_title'), description: t('error_generic'), variant: 'destructive' }
     );
     setAddingToPlaylist(null);
     setShowPlaylistMenu(null);
@@ -261,7 +263,7 @@ export default function TitresPage() {
 
   // ── Titre CRUD ───────────────────────────────────────────────────────────────
   async function updateTitre(id: string, updates: Partial<Titre>) {
-    setTitres(t => t.map(x => x.id === id ? { ...x, ...updates } : x));
+    setTitres(ts => ts.map(x => x.id === id ? { ...x, ...updates } : x));
     await fetch(`/api/titres/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -270,13 +272,13 @@ export default function TitresPage() {
   }
 
   async function deleteTitre(id: string) {
-    if (!confirm('Supprimer ce titre et son association au fichier local ?')) return;
-    setTitres(t => t.filter(x => x.id !== id));
+    if (!confirm(t('delete_titre_confirm'))) return;
+    setTitres(ts => ts.filter(x => x.id !== id));
     await Promise.all([
       fetch(`/api/titres/${id}`, { method: 'DELETE' }),
       localStore.removeAssociation(id),
     ]);
-    toast({ title: 'Titre supprimé' });
+    toast({ title: t('titre_deleted_toast') });
   }
 
   async function saveNote(id: string) {
@@ -291,7 +293,7 @@ export default function TitresPage() {
     const hint   = meta?.filename ?? storagePath ?? '';
 
     if (status === 'checking') {
-      return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Vérification…</span>;
+      return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {t('file_checking_label')}</span>;
     }
     if (status === 'ok') {
       return (
@@ -305,7 +307,7 @@ export default function TitresPage() {
       return (
         <span className="inline-flex items-center gap-1 text-xs text-amber-600">
           <AlertCircle className="h-3 w-3" />
-          {hint ? <span className="truncate max-w-[150px]">{hint}</span> : 'Ré-autorisation requise'}
+          {hint ? <span className="truncate max-w-[150px]">{hint}</span> : t('file_reauth_required')}
         </span>
       );
     }
@@ -313,7 +315,7 @@ export default function TitresPage() {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-destructive">
         <AlertCircle className="h-3 w-3" />
-        Aucun fichier associé
+        {t('file_no_assoc')}
       </span>
     );
   }
@@ -335,7 +337,7 @@ export default function TitresPage() {
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5 text-[#4A6FA5]" />
-                <h3 className="font-bold text-[#2C2C2A]">Après l&apos;achat iTunes ou Amazon</h3>
+                <h3 className="font-bold text-[#2C2C2A]">{t('purchase_dialog_title')}</h3>
               </div>
               <button onClick={() => setPurchaseDialogOpen(false)} className="text-muted-foreground hover:text-[#2C2C2A]">
                 <X className="h-5 w-5" />
@@ -359,8 +361,8 @@ export default function TitresPage() {
                 <span>Revenez ici et cliquez <strong>Associer le fichier</strong> à côté du titre.</span>
               </li>
             </ol>
-            <Button className="w-full bg-[#4A6FA5]" onClick={() => setPurchaseDialogOpen(false)}>
-              Compris
+            <Button className="w-full bg-[#4A6FA5] text-base h-11" onClick={() => setPurchaseDialogOpen(false)}>
+              {t('understood_btn')}
             </Button>
           </div>
         </div>
@@ -368,8 +370,8 @@ export default function TitresPage() {
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div>
-        <h1 className="text-2xl font-bold text-[#2C2C2A]">Mes titres</h1>
-        <p className="text-muted-foreground text-sm">{titres.length} titre(s)</p>
+        <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('tracks_title')}</h1>
+        <p className="text-muted-foreground text-base">{titres.length} {titres.length > 1 ? 'titres' : 'titre'}</p>
       </div>
 
       {/* ── Bannière dossier NeuroWake Music ───────────────────────────────── */}
@@ -403,11 +405,11 @@ export default function TitresPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-[#7BA05B] font-medium">
                 <Check className="h-4 w-4 flex-shrink-0" />
-                Dossier <strong>NeuroWake Music</strong> configuré — les sélecteurs s&apos;ouvrent directement dedans.
+                {t('folder_setup_done_msg')}
               </div>
               {dirPickerSupported && (
                 <button onClick={handleSetupFolder} className="text-xs text-muted-foreground hover:text-[#4A6FA5] underline">
-                  Changer d&apos;emplacement
+                  {t('folder_change_location')}
                 </button>
               )}
             </div>
@@ -437,9 +439,9 @@ export default function TitresPage() {
                     className="w-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white text-base"
                   >
                     {settingUpFolder ? (
-                      <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Création en cours…</>
+                      <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('creating_folder_label')}</>
                     ) : (
-                      <><FolderOpen className="h-5 w-5 mr-2" />J&apos;autorise — Créer le dossier sur mon appareil</>
+                      <><FolderOpen className="h-5 w-5 mr-2" />{t('authorize_create_folder')}</>
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground">
@@ -557,9 +559,10 @@ export default function TitresPage() {
 
       {/* ── Recherche ───────────────────────────────────────────────────────── */}
       <Input
-        placeholder="Rechercher dans mes titres..."
+        placeholder={t('search_placeholder')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        className="text-base h-11"
       />
 
       {/* ── Zone ajout par glisser-déposer ──────────────────────────────────── */}
@@ -574,7 +577,7 @@ export default function TitresPage() {
           setDragOver(false);
           const file = e.dataTransfer.files[0];
           if (file && isAudioFile(file)) handleNewFileSelected(file);
-          else toast({ title: 'Format non supporté', description: 'MP3, WAV, FLAC, M4A, OGG, AAC, WMA, AIFF acceptés.', variant: 'destructive' });
+          else toast({ title: t('unsupported_format_msg'), description: t('unsupported_format_desc'), variant: 'destructive' });
         }}
         onClick={() => {
           const input = document.createElement('input');
@@ -588,34 +591,36 @@ export default function TitresPage() {
         }}
       >
         <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-        <p className="text-muted-foreground font-medium">Glissez un fichier audio ou cliquez pour ajouter un titre</p>
-        <p className="text-xs text-muted-foreground mt-1">MP3, WAV, FLAC, M4A, OGG, AAC, WMA, AIFF — tous formats audio</p>
+        <p className="text-muted-foreground font-medium text-base">{t('drag_drop_title')}</p>
+        <p className="text-sm text-muted-foreground mt-1">{t('drag_drop_formats')}</p>
       </div>
 
       {/* ── Formulaire confirmation nouveau titre ────────────────────────────── */}
       {pendingAdd && (
         <Card className="border-[#4A6FA5] bg-[#4A6FA5]/5">
           <CardContent className="p-4 space-y-3">
-            <p className="text-sm font-medium text-[#4A6FA5]">Nouveau titre — confirmez les informations</p>
+            <p className="text-base font-semibold text-[#4A6FA5]">{t('new_titre_header')}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Titre</label>
+                <label className="text-sm text-muted-foreground mb-1 block">{t('titre_label')}</label>
                 <Input
                   value={pendingAdd.titre}
                   onChange={(e) => setPendingAdd(p => p ? { ...p, titre: e.target.value } : p)}
-                  placeholder="Nom du titre"
+                  placeholder={t('titre_label')}
+                  className="text-base"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Artiste</label>
+                <label className="text-sm text-muted-foreground mb-1 block">{t('artiste_label')}</label>
                 <Input
                   value={pendingAdd.artiste}
                   onChange={(e) => setPendingAdd(p => p ? { ...p, artiste: e.target.value } : p)}
-                  placeholder="Nom de l'artiste"
+                  placeholder={t('artiste_label')}
+                  className="text-base"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Année (optionnel)</label>
+                <label className="text-sm text-muted-foreground mb-1 block">{t('annee_label')}</label>
                 <Input
                   type="number"
                   min="1900"
@@ -630,10 +635,10 @@ export default function TitresPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button onClick={confirmNewTitre} disabled={savingNew || !pendingAdd.titre.trim()} className="bg-[#4A6FA5]">
-                {savingNew ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enregistrement…</> : '✅ Confirmer'}
+              <Button onClick={confirmNewTitre} disabled={savingNew || !pendingAdd.titre.trim()} className="bg-[#4A6FA5] text-base h-11">
+                {savingNew ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('saving_label')}</> : t('confirm_btn')}
               </Button>
-              <Button variant="outline" onClick={() => setPendingAdd(null)}>Annuler</Button>
+              <Button variant="outline" onClick={() => setPendingAdd(null)} className="text-base h-11">{t('cancel')}</Button>
             </div>
           </CardContent>
         </Card>
@@ -642,22 +647,22 @@ export default function TitresPage() {
       {/* ── Liste des titres ─────────────────────────────────────────────────── */}
       {loading ? (
         <div className="text-center py-8 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />Chargement…
+          <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />{t('loading')}
         </div>
       ) : titres.length === 0 ? (
-        <p className="text-center text-muted-foreground py-8">
-          Aucun titre. Glissez un fichier audio ci-dessus ou validez des titres dans &ldquo;Découverte&rdquo;.
+        <p className="text-center text-muted-foreground py-8 text-base">
+          {t('no_titles_msg')}
         </p>
       ) : (
         <div className="space-y-3">
-          {titres.map((t) => {
-            const status = fileStatus[t.id] ?? 'checking';
+          {titres.map((titre) => {
+            const status = fileStatus[titre.id] ?? 'checking';
             return (
-              <Card key={t.id}>
+              <Card key={titre.id}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
                     {/* Status icon */}
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 text-xl ${
+                    <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 text-2xl ${
                       status === 'ok'       ? 'bg-green-50 border border-green-200' :
                       status === 'pending'  ? 'bg-amber-50 border border-amber-200' :
                       status === 'checking' ? 'bg-[#EDEAE3]' :
@@ -672,16 +677,16 @@ export default function TitresPage() {
                       {/* Title + delete */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="font-semibold truncate">{t.titre}</p>
+                          <p className="font-semibold text-base truncate">{titre.titre}</p>
                           <p className="text-sm text-muted-foreground">
-                            {t.artiste}{t.annee ? ` · ${t.annee}` : ''}{t.duree_secondes ? ` · ${formatDuration(t.duree_secondes)}` : ''}
+                            {titre.artiste}{titre.annee ? ` · ${titre.annee}` : ''}{titre.duree_secondes ? ` · ${formatDuration(titre.duree_secondes)}` : ''}
                           </p>
                           <div className="mt-1">
-                            <StatusBadge titreId={t.id} storagePath={t.storage_path} />
+                            <StatusBadge titreId={titre.id} storagePath={titre.storage_path} />
                           </div>
                         </div>
-                        <button onClick={() => deleteTitre(t.id)} className="text-muted-foreground hover:text-destructive flex-shrink-0 mt-1">
-                          <Trash2 className="h-4 w-4" />
+                        <button onClick={() => deleteTitre(titre.id)} className="text-muted-foreground hover:text-destructive flex-shrink-0 mt-1">
+                          <Trash2 className="h-5 w-5" />
                         </button>
                       </div>
 
@@ -693,21 +698,21 @@ export default function TitresPage() {
                           <>
                             <Button
                               size="sm"
-                              className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white"
-                              onClick={() => associerFichier(t.id)}
-                              disabled={associating === t.id}
+                              className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white text-base h-10"
+                              onClick={() => associerFichier(titre.id)}
+                              disabled={associating === titre.id}
                             >
-                              {associating === t.id
-                                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sélection…</>
-                                : <><FolderOpen className="h-4 w-4 mr-2" />Associer le fichier</>
+                              {associating === titre.id
+                                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('selecting_label')}</>
+                                : <><FolderOpen className="h-4 w-4 mr-2" />{t('assoc_file_btn')}</>
                               }
                             </Button>
                             <button
                               onClick={() => setPurchaseDialogOpen(true)}
-                              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-[#4A6FA5]"
+                              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-[#4A6FA5]"
                             >
-                              <ShoppingCart className="h-3 w-3" />
-                              J&apos;ai acheté ce titre sur iTunes / Amazon
+                              <ShoppingCart className="h-4 w-4" />
+                              {t('i_bought_itunes')}
                             </button>
                           </>
                         )}
@@ -717,13 +722,13 @@ export default function TitresPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="border-amber-500 text-amber-600 hover:bg-amber-50"
-                            onClick={() => reautoriserFichier(t.id)}
-                            disabled={associating === t.id}
+                            className="border-amber-500 text-amber-600 hover:bg-amber-50 text-base h-10"
+                            onClick={() => reautoriserFichier(titre.id)}
+                            disabled={associating === titre.id}
                           >
-                            {associating === t.id
+                            {associating === titre.id
                               ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />…</>
-                              : <><Link className="h-4 w-4 mr-2" />Associer le fichier</>
+                              : <><Link className="h-4 w-4 mr-2" />{t('assoc_file_btn')}</>
                             }
                           </Button>
                         )}
@@ -733,13 +738,13 @@ export default function TitresPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:text-[#4A6FA5] text-xs"
-                            onClick={() => associerFichier(t.id)}
-                            disabled={associating === t.id}
+                            className="text-muted-foreground hover:text-[#4A6FA5] text-sm"
+                            onClick={() => associerFichier(titre.id)}
+                            disabled={associating === titre.id}
                           >
-                            {associating === t.id
+                            {associating === titre.id
                               ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <><FolderOpen className="h-3 w-3 mr-1" />Remplacer le fichier</>
+                              : <><FolderOpen className="h-3 w-3 mr-1" />{t('replace_file_btn')}</>
                             }
                           </Button>
                         )}
@@ -749,56 +754,56 @@ export default function TitresPage() {
                       <div className="flex flex-wrap items-center gap-4 mt-3">
                         <div className="flex items-center gap-2">
                           <Switch
-                            checked={t.dans_playlist_favorite}
-                            onCheckedChange={(checked) => updateTitre(t.id, { dans_playlist_favorite: checked })}
+                            checked={titre.dans_playlist_favorite}
+                            onCheckedChange={(checked) => updateTitre(titre.id, { dans_playlist_favorite: checked })}
                           />
-                          <span className="text-sm text-muted-foreground">Favorite</span>
+                          <span className="text-base text-muted-foreground">{t('favorite_label')}</span>
                         </div>
 
                         <div className="relative">
                           <button
                             onClick={() => {
-                              setShowPlaylistMenu(showPlaylistMenu === t.id ? null : t.id);
+                              setShowPlaylistMenu(showPlaylistMenu === titre.id ? null : titre.id);
                               setShowNewPlaylistInput(null);
                             }}
-                            className="flex items-center gap-1 text-sm text-[#4A6FA5] hover:underline"
+                            className="flex items-center gap-1 text-base text-[#4A6FA5] hover:underline"
                           >
-                            <ListPlus className="h-4 w-4" /> Playlist
+                            <ListPlus className="h-5 w-5" /> Playlist
                           </button>
-                          {showPlaylistMenu === t.id && (
+                          {showPlaylistMenu === titre.id && (
                             <div className="absolute z-20 top-8 left-0 bg-white border rounded-lg shadow-lg p-2 min-w-[200px] space-y-1">
                               {userPlaylists.length === 0 && (
-                                <p className="text-xs text-muted-foreground px-2 py-1">Aucune playlist</p>
+                                <p className="text-sm text-muted-foreground px-2 py-1">{t('no_playlist_option')}</p>
                               )}
                               {userPlaylists.map((pl) => (
                                 <button
                                   key={pl.id}
                                   className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm rounded hover:bg-[#EDEAE3]"
-                                  onClick={() => addToPlaylist(t.id, pl.id)}
+                                  onClick={() => addToPlaylist(titre.id, pl.id)}
                                   disabled={addingToPlaylist === pl.id}
                                 >
                                   {addingToPlaylist === pl.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 opacity-0" />}
                                   {pl.nom}
                                 </button>
                               ))}
-                              {showNewPlaylistInput === t.id ? (
+                              {showNewPlaylistInput === titre.id ? (
                                 <div className="flex gap-1 px-1 pt-1">
                                   <Input
                                     ref={newPlaylistRef}
                                     value={newPlaylistName}
                                     onChange={(e) => setNewPlaylistName(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && createPlaylistAndAdd(t.id)}
+                                    onKeyDown={(e) => e.key === 'Enter' && createPlaylistAndAdd(titre.id)}
                                     placeholder="Nom…"
                                     className="h-7 text-xs"
                                   />
-                                  <button onClick={() => createPlaylistAndAdd(t.id)} className="px-2 py-1 text-xs bg-[#4A6FA5] text-white rounded">OK</button>
+                                  <button onClick={() => createPlaylistAndAdd(titre.id)} className="px-2 py-1 text-xs bg-[#4A6FA5] text-white rounded">{t('ok_btn')}</button>
                                 </div>
                               ) : (
                                 <button
                                   className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-[#4A6FA5] rounded hover:bg-[#EDEAE3]"
-                                  onClick={() => { setShowNewPlaylistInput(t.id); setTimeout(() => newPlaylistRef.current?.focus(), 50); }}
+                                  onClick={() => { setShowNewPlaylistInput(titre.id); setTimeout(() => newPlaylistRef.current?.focus(), 50); }}
                                 >
-                                  <Plus className="h-3 w-3" /> Nouvelle playlist…
+                                  <Plus className="h-3 w-3" /> {t('new_playlist_option')}
                                 </button>
                               )}
                             </div>
@@ -807,25 +812,25 @@ export default function TitresPage() {
 
                         <div className="relative">
                           <button
-                            onClick={() => setShowReps(showReps === t.id ? null : t.id)}
-                            className="flex items-center gap-1 text-sm text-[#4A6FA5] hover:underline"
+                            onClick={() => setShowReps(showReps === titre.id ? null : titre.id)}
+                            className="flex items-center gap-1 text-base text-[#4A6FA5] hover:underline"
                           >
-                            {t.boucle_infinie
-                              ? <><Infinity className="h-4 w-4" /> Boucle</>
-                              : <><RefreshCw className="h-4 w-4" /> {t.repetitions}×</>
+                            {titre.boucle_infinie
+                              ? <><Infinity className="h-5 w-5" /> Boucle</>
+                              : <><RefreshCw className="h-5 w-5" /> {titre.repetitions}×</>
                             }
                           </button>
-                          {showReps === t.id && (
+                          {showReps === titre.id && (
                             <div className="absolute z-10 top-8 left-0 bg-white border rounded-lg shadow-lg p-2 flex gap-1">
                               {REP_OPTIONS.map((opt) => (
                                 <button
                                   key={`${opt.value}-${opt.loop}`}
-                                  className={`px-3 py-2 text-sm rounded-md ${
-                                    t.boucle_infinie === opt.loop && t.repetitions === opt.value
+                                  className={`px-3 py-2 text-base rounded-md ${
+                                    titre.boucle_infinie === opt.loop && titre.repetitions === opt.value
                                       ? 'bg-[#4A6FA5] text-white'
                                       : 'hover:bg-[#EDEAE3]'
                                   }`}
-                                  onClick={() => { updateTitre(t.id, { repetitions: opt.value, boucle_infinie: opt.loop }); setShowReps(null); }}
+                                  onClick={() => { updateTitre(titre.id, { repetitions: opt.value, boucle_infinie: opt.loop }); setShowReps(null); }}
                                 >
                                   {opt.label}
                                 </button>
@@ -836,26 +841,26 @@ export default function TitresPage() {
                       </div>
 
                       {/* ── Note ──────────────────────────────────────────── */}
-                      {editNotes[t.id] !== undefined ? (
+                      {editNotes[titre.id] !== undefined ? (
                         <div className="mt-3 space-y-2">
                           <Textarea
-                            value={editNotes[t.id]}
-                            onChange={(e) => setEditNotes(n => ({ ...n, [t.id]: e.target.value }))}
-                            placeholder="Note personnelle…"
-                            className="text-sm"
+                            value={editNotes[titre.id]}
+                            onChange={(e) => setEditNotes(n => ({ ...n, [titre.id]: e.target.value }))}
+                            placeholder={t('note_placeholder')}
+                            className="text-base"
                             rows={2}
                           />
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={() => saveNote(t.id)}>Enregistrer</Button>
-                            <Button size="sm" variant="outline" onClick={() => setEditNotes(n => { const c = { ...n }; delete c[t.id]; return c; })}>Annuler</Button>
+                            <Button size="sm" className="text-base h-10" onClick={() => saveNote(titre.id)}>{t('save_btn')}</Button>
+                            <Button size="sm" variant="outline" className="text-base h-10" onClick={() => setEditNotes(n => { const c = { ...n }; delete c[titre.id]; return c; })}>{t('cancel')}</Button>
                           </div>
                         </div>
                       ) : (
                         <button
-                          onClick={() => setEditNotes(n => ({ ...n, [t.id]: t.note_aidant ?? '' }))}
-                          className="mt-2 text-xs text-muted-foreground hover:text-[#4A6FA5]"
+                          onClick={() => setEditNotes(n => ({ ...n, [titre.id]: titre.note_aidant ?? '' }))}
+                          className="mt-2 text-sm text-muted-foreground hover:text-[#4A6FA5]"
                         >
-                          {t.note_aidant || '+ Ajouter une note'}
+                          {titre.note_aidant || t('add_note_btn')}
                         </button>
                       )}
                     </div>
@@ -869,10 +874,10 @@ export default function TitresPage() {
 
       {/* ── Légende ─────────────────────────────────────────────────────────── */}
       {titres.length > 0 && (
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><Check className="h-3 w-3 text-[#7BA05B]" /> Fichier prêt</span>
-          <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-amber-500" /> Ré-association requise</span>
-          <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-destructive" /> Aucun fichier</span>
+        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1"><Check className="h-4 w-4 text-[#7BA05B]" /> {t('file_ready_legend')}</span>
+          <span className="flex items-center gap-1"><AlertCircle className="h-4 w-4 text-amber-500" /> {t('file_reauth_legend')}</span>
+          <span className="flex items-center gap-1"><AlertCircle className="h-4 w-4 text-destructive" /> {t('file_missing_legend')}</span>
         </div>
       )}
 
@@ -883,7 +888,7 @@ export default function TitresPage() {
           className="w-full bg-[#7BA05B] hover:bg-[#7BA05B]/90 text-white text-base font-semibold"
           onClick={() => router.push('/app')}
         >
-          J&apos;ai terminé → Aller au lecteur
+          {t('done_player_btn')}
           <ChevronRight className="h-5 w-5 ml-2" />
         </Button>
       </div>

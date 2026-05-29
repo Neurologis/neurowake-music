@@ -6,7 +6,9 @@
       "Bash(pnpm run *)",
       "Bash(npm run *)",
       "PowerShell(Select-String -Path \"C:\\\\Users\\\\jeanc\\\\.claude\\\\projects\\\\C--Users-jeanc-Desktop-Dossiers-BLOG-BL-ALZHEIMER-Projet-Musiques-Autobiograpiques-IA-Code-Neuro-Wake-Music\\\\03220eab-f1d9-44e5-9408-31dc40a613dd\\\\tool-results\\\\bpeemqf2h.txt\" -Pattern \"Type error|error TS|Failed to compile|✓ Generating\" | Select-Object -Last 10 | ForEach-Object { $_.Line })",
-      "PowerShell($env:PATH = $env:PATH + \";C:\\\\Users\\\\jeanc\\\\AppData\\\\Local\\\\pnpm;C:\\\\Program Files\\\\nodejs;C:\\\\Users\\\\jeanc\\\\AppData\\\\Roaming\\\\npm\"; Get-Command pnpm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)"
+      "PowerShell($env:PATH = $env:PATH + \";C:\\\\Users\\\\jeanc\\\\AppData\\\\Local\\\\pnpm;C:\\\\Program Files\\\\nodejs;C:\\\\Users\\\\jeanc\\\\AppData\\\\Roaming\\\\npm\"; Get-Command pnpm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)",
+      "Bash(dir \"C:\\\\Users\\\\jeanc\\\\Desktop\\\\Dossiers\\\\BLOG BL ALZHEIMER\\\\Projet Musiques Autobiograpiques IA\\\\Code Neuro Wake Music\\\\app\" /b)",
+      "PowerShell(\\(Get-Command node -ErrorAction SilentlyContinue\\).Source; \\(Get-Command npm -ErrorAction SilentlyContinue\\).Source; \\(Get-Command npx -ErrorAction SilentlyContinue\\).Source)"
     ]
   }
 }

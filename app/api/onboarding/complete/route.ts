@@ -102,9 +102,13 @@ export async function POST(req: NextRequest) {
   // Retry up to 3 times for FK violations (code 23503).
   // These happen when Supabase Auth hasn't fully propagated the new user
   // into auth.users yet right after email confirmation.
+  // onConflict: 'user_id' ensures UPDATE (not INSERT) when the profile already exists,
+  // fixing the "duplicate key violates unique constraint profils_user_id_key" error.
   let saveError: { code?: string; message: string } | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const result = await supabase.from('profils').upsert(upsertPayload);
+    const result = await supabase
+      .from('profils')
+      .upsert(upsertPayload, { onConflict: 'user_id' });
     saveError = result.error as typeof saveError;
     if (!saveError) break;
     if (saveError.code !== '23503' || attempt === 3) break;
@@ -120,12 +124,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Créer l'abonnement trial
-  await admin.from('abonnements').upsert({
-    user_id: userId,
-    statut: 'trial',
-    trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-  });
+  // Créer l'abonnement trial uniquement si l'utilisateur n'en a pas déjà un
+  // (ne pas écraser un abonnement actif lors d'un re-onboarding)
+  const { data: existingAbo } = await admin
+    .from('abonnements')
+    .select('id, statut')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!existingAbo) {
+    await admin.from('abonnements').insert({
+      user_id: userId,
+      statut: 'trial',
+      trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  // (if existingAbo exists, keep it unchanged — don't reset a paying subscription)
 
   // Générer les recommandations musicales via IA (Claude)
   let titresRecommandes: unknown[] = [];
@@ -141,6 +155,14 @@ export async function POST(req: NextRequest) {
       chanson_madeleine: profil.chanson_madeleine,
       limit: 50,
     });
+
+    // Supprimer les anciennes propositions IA avant d'en insérer de nouvelles
+    // (évite les doublons lors d'un re-onboarding, préserve les titres validés/importés)
+    await admin
+      .from('titres_recommandes')
+      .delete()
+      .eq('user_id', userId)
+      .eq('statut', 'propose');
 
     const inserts = titresIA.map((t) => ({
       user_id: userId,
