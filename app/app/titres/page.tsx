@@ -1,15 +1,16 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import {
   Upload, Trash2, RefreshCw, Infinity, ListPlus, Check, Plus,
-  FolderOpen, AlertCircle, Loader2, HardDrive, Link,
+  FolderOpen, AlertCircle, Loader2, HardDrive, Link, ShoppingCart, X,
+  ChevronRight, Info,
 } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
 import * as localStore from '@/lib/local-audio-store';
@@ -50,6 +51,8 @@ const REP_OPTIONS = [
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.aac', '.m4a', '.flac', '.ogg', '.wma', '.aiff', '.aif'];
 
 export default function TitresPage() {
+  const router = useRouter();
+
   const [titres, setTitres]             = useState<Titre[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
@@ -61,6 +64,12 @@ export default function TitresPage() {
   const [savingNew, setSavingNew]       = useState(false);
   const [dragOver, setDragOver]         = useState(false);
   const [fileMetas, setFileMetas]       = useState<Record<string, localStore.FileMeta | null>>({});
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [folderSetup, setFolderSetup]               = useState<boolean | null>(null); // null = checking
+  const [settingUpFolder, setSettingUpFolder]       = useState(false);
+  // Capabilities — set client-side to avoid SSR mismatch
+  const [dirPickerSupported, setDirPickerSupported] = useState(false);
+  const [platform, setPlatform]                     = useState<'windows' | 'macos' | 'ios' | 'android' | 'other'>('other');
 
   // Playlists
   const [userPlaylists, setUserPlaylists]         = useState<UserPlaylist[]>([]);
@@ -69,6 +78,36 @@ export default function TitresPage() {
   const [showNewPlaylistInput, setShowNewPlaylistInput] = useState<string | null>(null);
   const [newPlaylistName, setNewPlaylistName]     = useState('');
   const newPlaylistRef = useRef<HTMLInputElement>(null);
+
+  // ── Detect capabilities & platform (client-only) ────────────────────────────
+  useEffect(() => {
+    setDirPickerSupported(localStore.supportsDirectoryPicker());
+    const ua = navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(ua))                            setPlatform('ios');
+    else if (/android/.test(ua))                                setPlatform('android');
+    else if (/macintosh|mac os x/.test(ua) && !/mobile/.test(ua)) setPlatform('macos');
+    else if (/windows/.test(ua))                                setPlatform('windows');
+    else                                                        setPlatform('other');
+    localStore.hasMusicFolder().then(setFolderSetup);
+  }, []);
+
+  async function handleSetupFolder() {
+    setSettingUpFolder(true);
+    try {
+      const handle = await localStore.setupMusicFolder();
+      if (handle) {
+        setFolderSetup(true);
+        toast({
+          title: '📁 Dossier créé ✅',
+          description: 'Le dossier "NeuroWake Music" est prêt. Les prochains sélecteurs de fichiers s\'ouvriront directement dedans.',
+        });
+      }
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de créer le dossier.', variant: 'destructive' });
+    } finally {
+      setSettingUpFolder(false);
+    }
+  }
 
   // ── Load titres ─────────────────────────────────────────────────────────────
   const loadTitres = useCallback(async () => {
@@ -91,11 +130,7 @@ export default function TitresPage() {
   useEffect(() => {
     if (titres.length === 0) return;
     const ids = titres.map(t => t.id);
-
-    // Batch status check
     localStore.checkStatuses(ids).then(setFileStatus);
-
-    // Load filename metas (for display on pending/missing files)
     Promise.all(ids.map(id => localStore.getFileMeta(id).then(m => [id, m] as [string, localStore.FileMeta | null])))
       .then(entries => setFileMetas(Object.fromEntries(entries)));
   }, [titres]);
@@ -107,7 +142,6 @@ export default function TitresPage() {
       const file = await localStore.pickAndAssociate(titreId);
       if (!file) { setAssociating(null); return; }
 
-      // Update DB storage_path hint with new filename
       await fetch(`/api/titres/${titreId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -134,7 +168,6 @@ export default function TitresPage() {
         setFileStatus(s => ({ ...s, [titreId]: 'ok' }));
         toast({ title: 'Accès autorisé ✅' });
       } else {
-        // Permission denied — let user re-pick
         await associerFichier(titreId);
         return;
       }
@@ -146,8 +179,8 @@ export default function TitresPage() {
   // ── Add new titre from local file ────────────────────────────────────────────
   function handleNewFileSelected(file: File) {
     const cleanName = file.name
-      .replace(/\.[^.]+$/, '')      // remove extension
-      .replace(/[-_]/g, ' ')        // dashes/underscores → spaces
+      .replace(/\.[^.]+$/, '')
+      .replace(/[-_]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
     setPendingAdd({ file, titre: cleanName, artiste: '', annee: '' });
@@ -176,14 +209,13 @@ export default function TitresPage() {
       if (!res.ok) throw new Error('API error');
 
       const newTitre = await res.json();
-      // Associate the file with the newly created titre ID
       await localStore.associateFile(newTitre.id, pendingAdd.file);
       setTitres(ts => [newTitre, ...ts]);
       setFileStatus(s => ({ ...s, [newTitre.id]: 'ok' }));
       setPendingAdd(null);
       toast({ title: 'Titre ajouté ✅', description: `${newTitre.titre} — ${newTitre.artiste}` });
     } catch {
-      toast({ title: 'Erreur', description: 'Impossible d\'enregistrer le titre.', variant: 'destructive' });
+      toast({ title: 'Erreur', description: "Impossible d'enregistrer le titre.", variant: 'destructive' });
     } finally {
       setSavingNew(false);
     }
@@ -283,35 +315,248 @@ export default function TitresPage() {
   // ── Main render ──────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header */}
+
+      {/* ── Popup "Après l'achat" ───────────────────────────────────────────── */}
+      {purchaseDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPurchaseDialogOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-[#4A6FA5]" />
+                <h3 className="font-bold text-[#2C2C2A]">Après l&apos;achat iTunes ou Amazon</h3>
+              </div>
+              <button onClick={() => setPurchaseDialogOpen(false)} className="text-muted-foreground hover:text-[#2C2C2A]">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <ol className="space-y-3 text-sm text-[#2C2C2A]">
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#4A6FA5] text-white text-xs font-bold flex items-center justify-center">1</span>
+                <span>Téléchargez le fichier audio acheté sur votre appareil.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#4A6FA5] text-white text-xs font-bold flex items-center justify-center">2</span>
+                <span>
+                  Déplacez-le dans votre dossier <strong>NeuroWake Music</strong> :<br />
+                  <span className="text-xs text-muted-foreground font-mono">Windows : Musique\NeuroWake Music\</span><br />
+                  <span className="text-xs text-muted-foreground font-mono">Mac : ~/Musique/NeuroWake Music/</span>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#4A6FA5] text-white text-xs font-bold flex items-center justify-center">3</span>
+                <span>Revenez ici et cliquez <strong>Associer le fichier</strong> à côté du titre.</span>
+              </li>
+            </ol>
+            <Button className="w-full bg-[#4A6FA5]" onClick={() => setPurchaseDialogOpen(false)}>
+              Compris
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div>
         <h1 className="text-2xl font-bold text-[#2C2C2A]">Mes titres</h1>
         <p className="text-muted-foreground text-sm">{titres.length} titre(s)</p>
       </div>
 
-      {/* Bannière stockage local */}
-      <Card className="bg-[#4A6FA5]/5 border-[#4A6FA5]/20">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <HardDrive className="h-5 w-5 text-[#4A6FA5] mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-[#2C2C2A]">
-              <strong>NeuroWake Music</strong> lit les fichiers audio directement depuis votre appareil
-              (ordinateur, tablette ou téléphone). <strong>Aucun fichier musical n&apos;est envoyé sur internet.</strong>
-              {' '}Après avoir ajouté un titre, associez son fichier audio depuis votre appareil avec le bouton{' '}
-              <span className="text-[#4A6FA5] font-medium">Associer le fichier</span>.
+      {/* ── Bannière dossier NeuroWake Music ───────────────────────────────── */}
+      <Card className="bg-[#4A6FA5]/5 border-[#4A6FA5]/30">
+        <CardContent className="p-5 space-y-4">
+
+          <div className="flex items-center gap-3">
+            <HardDrive className="h-5 w-5 text-[#4A6FA5] flex-shrink-0" />
+            <p className="font-semibold text-[#2C2C2A]">📁 Dossier NeuroWake Music</p>
+          </div>
+
+          {/* ⚠️ Avertissement permanent */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">
+              <strong>Obligatoire :</strong> tous vos fichiers audio doivent être placés dans le
+              dossier <strong>NeuroWake Music</strong>. L&apos;application ne peut lire que les
+              fichiers présents dans ce dossier autorisé.
             </p>
           </div>
+
+          {/* Vérification initiale */}
+          {folderSetup === null && (
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3 w-3 animate-spin" /> Vérification…
+            </p>
+          )}
+
+          {/* ✅ Dossier configuré */}
+          {folderSetup === true && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#7BA05B] font-medium">
+                <Check className="h-4 w-4 flex-shrink-0" />
+                Dossier <strong>NeuroWake Music</strong> configuré — les sélecteurs s&apos;ouvrent directement dedans.
+              </div>
+              {dirPickerSupported && (
+                <button onClick={handleSetupFolder} className="text-xs text-muted-foreground hover:text-[#4A6FA5] underline">
+                  Changer d&apos;emplacement
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Dossier non encore configuré */}
+          {folderSetup === false && (
+            <div className="space-y-4">
+
+              {/* Bouton d'autorisation automatique (Chrome / Edge / Chrome Android) */}
+              {dirPickerSupported && (
+                <div className="bg-white border border-[#4A6FA5]/30 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-medium text-[#2C2C2A]">
+                    🖥️ Création automatique disponible sur votre navigateur
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Cliquez sur le bouton ci-dessous pour autoriser l&apos;application à créer le
+                    dossier sur votre appareil. Une <strong>fenêtre système</strong> s&apos;ouvrira :
+                    naviguez jusqu&apos;à votre dossier <strong>Musique</strong>, puis cliquez{' '}
+                    <strong>Sélectionner</strong>. Le sous-dossier <strong>NeuroWake Music</strong>{' '}
+                    sera créé automatiquement à l&apos;intérieur.
+                  </p>
+                  <Button
+                    size="lg"
+                    onClick={handleSetupFolder}
+                    disabled={settingUpFolder}
+                    className="w-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white text-base"
+                  >
+                    {settingUpFolder ? (
+                      <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Création en cours…</>
+                    ) : (
+                      <><FolderOpen className="h-5 w-5 mr-2" />J&apos;autorise — Créer le dossier sur mon appareil</>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    En cliquant, vous autorisez l&apos;application à créer et accéder uniquement au
+                    dossier <strong>NeuroWake Music</strong>. Aucun autre fichier ou dossier n&apos;est accessible.
+                  </p>
+                </div>
+              )}
+
+              {/* Instructions manuelles — adaptées à l'OS détecté */}
+              <div className={dirPickerSupported ? 'border-t border-[#4A6FA5]/20 pt-4' : ''}>
+                {dirPickerSupported && (
+                  <p className="text-xs text-muted-foreground mb-3 font-medium">
+                    Sur un autre appareil (Safari, Firefox, iOS…) créez le dossier manuellement :
+                  </p>
+                )}
+
+                <div className="space-y-2 text-sm">
+
+                  {/* Windows */}
+                  {(platform === 'windows' || platform === 'other') && (
+                    <details className="bg-white border rounded-lg" open={platform === 'windows'}>
+                      <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
+                        <span>🪟</span> Windows — PC ou tablette Surface
+                      </summary>
+                      <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
+                        <li>Ouvrez l&apos;<strong>Explorateur de fichiers</strong> (touche Win&nbsp;+&nbsp;E)</li>
+                        <li>Dans le panneau gauche, cliquez sur <strong>Musique</strong></li>
+                        <li>Clic droit dans la zone vide → <strong>Nouveau → Dossier</strong></li>
+                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>Appuyez sur <strong>Entrée</strong> pour valider</li>
+                      </ol>
+                    </details>
+                  )}
+
+                  {/* Mac */}
+                  {(platform === 'macos' || platform === 'other') && (
+                    <details className="bg-white border rounded-lg" open={platform === 'macos'}>
+                      <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
+                        <span>🍎</span> Mac — MacBook ou iMac
+                      </summary>
+                      <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
+                        <li>Ouvrez le <strong>Finder</strong></li>
+                        <li>Dans la barre latérale, cliquez sur <strong>Musique</strong></li>
+                        <li>Menu Fichier → <strong>Nouveau dossier</strong> (ou <kbd>Cmd + Maj + N</kbd>)</li>
+                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>Appuyez sur <strong>Entrée</strong></li>
+                      </ol>
+                    </details>
+                  )}
+
+                  {/* iPhone / iPad */}
+                  {(platform === 'ios' || platform === 'other') && (
+                    <details className="bg-white border rounded-lg" open={platform === 'ios'}>
+                      <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
+                        <span>🍏</span> iPhone ou iPad
+                      </summary>
+                      <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
+                        <li>Ouvrez l&apos;app <strong>Fichiers</strong> (icône bleue)</li>
+                        <li>Appuyez sur <strong>Sur mon iPhone</strong> (ou Sur mon iPad)</li>
+                        <li>Appui long dans la zone vide → <strong>Nouveau dossier</strong></li>
+                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>Appuyez sur <strong>Terminé</strong></li>
+                      </ol>
+                    </details>
+                  )}
+
+                  {/* Android */}
+                  {(platform === 'android' || platform === 'other') && (
+                    <details className="bg-white border rounded-lg" open={platform === 'android'}>
+                      <summary className="px-4 py-3 font-medium cursor-pointer select-none list-none flex items-center gap-2">
+                        <span>🤖</span> Android — téléphone ou tablette
+                      </summary>
+                      <ol className="px-6 pb-3 pt-1 space-y-1.5 text-xs text-muted-foreground list-decimal">
+                        <li>Ouvrez l&apos;app <strong>Mes fichiers</strong> ou <strong>Gestionnaire de fichiers</strong></li>
+                        <li>Allez dans <strong>Stockage interne → Musique</strong></li>
+                        <li>Appuyez sur <strong>+</strong> ou <strong>Nouveau dossier</strong></li>
+                        <li>Tapez exactement : <code className="bg-[#EDEAE3] px-1.5 py-0.5 rounded font-mono">NeuroWake Music</code></li>
+                        <li>Confirmez avec <strong>OK</strong> ou <strong>Créer</strong></li>
+                      </ol>
+                    </details>
+                  )}
+
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Règles permanentes — toujours visibles ── */}
+          <div className="space-y-2 text-sm text-[#2C2C2A] border-t border-[#4A6FA5]/20 pt-3">
+            <div className="flex gap-2">
+              <span className="text-[#4A6FA5] font-bold flex-shrink-0">→</span>
+              <p>Placez <strong>tous vos fichiers audio</strong> (MP3, WAV, M4A, AAC, FLAC…) dans le dossier <strong>NeuroWake Music</strong>.</p>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-[#4A6FA5] font-bold flex-shrink-0">→</span>
+              <p>
+                Après un achat iTunes / Amazon, téléchargez le fichier dans ce dossier.{' '}
+                <button onClick={() => setPurchaseDialogOpen(true)} className="text-[#4A6FA5] underline hover:no-underline inline-flex items-center gap-1">
+                  <Info className="h-3 w-3" />Comment faire ?
+                </button>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-[#4A6FA5] font-bold flex-shrink-0">→</span>
+              <p>Cliquez <strong className="text-[#4A6FA5]">Associer le fichier</strong> à côté de chaque titre pour le lier.</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            🔒 <strong>Aucun fichier musical n&apos;est envoyé sur internet.</strong> Tout reste sur votre appareil.
+          </p>
         </CardContent>
       </Card>
 
-      {/* Recherche */}
+      {/* ── Recherche ───────────────────────────────────────────────────────── */}
       <Input
         placeholder="Rechercher dans mes titres..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      {/* Zone ajout par glisser-déposer */}
+      {/* ── Zone ajout par glisser-déposer ──────────────────────────────────── */}
       <div
         className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
           dragOver ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' : 'border-[#EDEAE3] hover:border-[#4A6FA5]'
@@ -341,7 +586,7 @@ export default function TitresPage() {
         <p className="text-xs text-muted-foreground mt-1">MP3, WAV, FLAC, M4A, OGG, AAC, WMA, AIFF — tous formats audio</p>
       </div>
 
-      {/* Formulaire confirmation nouveau titre */}
+      {/* ── Formulaire confirmation nouveau titre ────────────────────────────── */}
       {pendingAdd && (
         <Card className="border-[#4A6FA5] bg-[#4A6FA5]/5">
           <CardContent className="p-4 space-y-3">
@@ -388,7 +633,7 @@ export default function TitresPage() {
         </Card>
       )}
 
-      {/* Liste des titres */}
+      {/* ── Liste des titres ─────────────────────────────────────────────────── */}
       {loading ? (
         <div className="text-center py-8 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />Chargement…
@@ -434,41 +679,55 @@ export default function TitresPage() {
                         </button>
                       </div>
 
-                      {/* File association buttons */}
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {(status === 'missing') && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-[#4A6FA5] text-[#4A6FA5] hover:bg-[#4A6FA5]/10 h-8 text-xs"
-                            onClick={() => associerFichier(t.id)}
-                            disabled={associating === t.id}
-                          >
-                            {associating === t.id
-                              ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Sélection…</>
-                              : <><FolderOpen className="h-3 w-3 mr-1" />Associer le fichier</>
-                            }
-                          </Button>
+                      {/* ── File association buttons ─────────────────────── */}
+                      <div className="mt-3 flex flex-wrap gap-2 items-center">
+
+                        {/* MISSING — bouton principal bien visible */}
+                        {status === 'missing' && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white"
+                              onClick={() => associerFichier(t.id)}
+                              disabled={associating === t.id}
+                            >
+                              {associating === t.id
+                                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sélection…</>
+                                : <><FolderOpen className="h-4 w-4 mr-2" />Associer le fichier</>
+                              }
+                            </Button>
+                            <button
+                              onClick={() => setPurchaseDialogOpen(true)}
+                              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-[#4A6FA5]"
+                            >
+                              <ShoppingCart className="h-3 w-3" />
+                              J&apos;ai acheté ce titre sur iTunes / Amazon
+                            </button>
+                          </>
                         )}
-                        {(status === 'pending') && (
+
+                        {/* PENDING — ré-association */}
+                        {status === 'pending' && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="border-amber-500 text-amber-600 hover:bg-amber-50 h-8 text-xs"
+                            className="border-amber-500 text-amber-600 hover:bg-amber-50"
                             onClick={() => reautoriserFichier(t.id)}
                             disabled={associating === t.id}
                           >
                             {associating === t.id
-                              ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />…</>
-                              : <><Link className="h-3 w-3 mr-1" />Ré-associer le fichier</>
+                              ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />…</>
+                              : <><Link className="h-4 w-4 mr-2" />Associer le fichier</>
                             }
                           </Button>
                         )}
-                        {(status === 'ok') && (
+
+                        {/* OK — remplacement discret */}
+                        {status === 'ok' && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:text-[#4A6FA5] h-8 text-xs"
+                            className="text-muted-foreground hover:text-[#4A6FA5] text-xs"
                             onClick={() => associerFichier(t.id)}
                             disabled={associating === t.id}
                           >
@@ -480,9 +739,8 @@ export default function TitresPage() {
                         )}
                       </div>
 
-                      {/* Options */}
+                      {/* ── Options (favorite, playlist, répétitions) ────── */}
                       <div className="flex flex-wrap items-center gap-4 mt-3">
-                        {/* Playlist favorite toggle */}
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={t.dans_playlist_favorite}
@@ -491,7 +749,6 @@ export default function TitresPage() {
                           <span className="text-sm text-muted-foreground">Favorite</span>
                         </div>
 
-                        {/* Add to custom playlist */}
                         <div className="relative">
                           <button
                             onClick={() => {
@@ -542,7 +799,6 @@ export default function TitresPage() {
                           )}
                         </div>
 
-                        {/* Répétitions */}
                         <div className="relative">
                           <button
                             onClick={() => setShowReps(showReps === t.id ? null : t.id)}
@@ -573,7 +829,7 @@ export default function TitresPage() {
                         </div>
                       </div>
 
-                      {/* Note */}
+                      {/* ── Note ──────────────────────────────────────────── */}
                       {editNotes[t.id] !== undefined ? (
                         <div className="mt-3 space-y-2">
                           <Textarea
@@ -605,14 +861,27 @@ export default function TitresPage() {
         </div>
       )}
 
-      {/* Legend */}
+      {/* ── Légende ─────────────────────────────────────────────────────────── */}
       {titres.length > 0 && (
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pb-8">
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><Check className="h-3 w-3 text-[#7BA05B]" /> Fichier prêt</span>
           <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-amber-500" /> Ré-association requise</span>
           <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-destructive" /> Aucun fichier</span>
         </div>
       )}
+
+      {/* ── Bouton "J'ai terminé" ────────────────────────────────────────────── */}
+      <div className="pb-8">
+        <Button
+          size="lg"
+          className="w-full bg-[#7BA05B] hover:bg-[#7BA05B]/90 text-white text-base font-semibold"
+          onClick={() => router.push('/app')}
+        >
+          J&apos;ai terminé → Aller au lecteur
+          <ChevronRight className="h-5 w-5 ml-2" />
+        </Button>
+      </div>
+
     </div>
   );
 }

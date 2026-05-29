@@ -20,18 +20,39 @@
  */
 
 // ── File System Access API type extensions ───────────────────────────────────
-// TypeScript's built-in lib does not yet include queryPermission / requestPermission.
+// TypeScript's built-in lib does not yet include queryPermission / requestPermission
+// nor showDirectoryPicker on window.
 interface FSAFileHandle extends FileSystemFileHandle {
   queryPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
   requestPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
 }
 
+type FSAStartIn =
+  | 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos'
+  | FileSystemDirectoryHandle;
+
+interface FSAWindow extends Window {
+  showOpenFilePicker(options?: {
+    types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+    multiple?: boolean;
+    excludeAcceptAllOption?: boolean;
+    startIn?: FSAStartIn;
+    id?: string;
+  }): Promise<FileSystemFileHandle[]>;
+  showDirectoryPicker(options?: {
+    startIn?: FSAStartIn;
+    mode?: 'read' | 'readwrite';
+    id?: string;
+  }): Promise<FileSystemDirectoryHandle>;
+}
+
 // ── IndexedDB ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'neurowake-audio-v1';
-const DB_VERSION = 1;
+const DB_VERSION = 2;                    // v2 adds STORE_DIR
 const STORE_HANDLES = 'handles'; // FileSystemFileHandle (desktop persistent)
 const STORE_META    = 'meta';    // FileMeta (filename hint, works everywhere)
+const STORE_DIR     = 'rootDir'; // FileSystemDirectoryHandle for NeuroWake Music folder
 
 export interface FileMeta {
   filename: string;
@@ -61,6 +82,7 @@ function _openDB(): Promise<IDBDatabase | null> {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_HANDLES)) db.createObjectStore(STORE_HANDLES);
       if (!db.objectStoreNames.contains(STORE_META))    db.createObjectStore(STORE_META);
+      if (!db.objectStoreNames.contains(STORE_DIR))     db.createObjectStore(STORE_DIR);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => { console.warn('[LocalAudioStore] IndexedDB unavailable'); resolve(null); };
@@ -126,11 +148,21 @@ function _ext(filename: string): string {
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Returns true on browsers that support the File System Access API.
- * Chrome 86+, Edge 86+, Opera 72+. Not Safari iOS, not Firefox < 111.
+ * True if the browser supports the File System Access file-picker API.
+ * Chrome 86+, Edge 86+, Opera 72+, Safari 15.2+, Firefox 111+.
+ * Used for opening individual audio files.
  */
 export function supportsFileSystemAccess(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+}
+
+/**
+ * True if the browser supports the directory-picker API (`showDirectoryPicker`).
+ * Needed for automatic folder creation — Chrome 86+, Edge 86+, Chrome Android 86+.
+ * NOT available in Safari (macOS or iOS) or Firefox as of 2025.
+ */
+export function supportsDirectoryPicker(): boolean {
+  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 }
 
 /**
@@ -288,11 +320,14 @@ export async function pickAndAssociate(titreId: string): Promise<File | null> {
   // ── Desktop: File System Access API ────────────────────────────────────────
   if (supportsFileSystemAccess()) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const [handle]: [FileSystemFileHandle] = await (window as any).showOpenFilePicker({
+      // Open picker in the stored NeuroWake Music folder if available; fall back to 'music'.
+      const musicFolder = await getMusicFolderHandle();
+      const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
         types: [audioAccept],
         multiple: false,
         excludeAcceptAllOption: false,
+        startIn: musicFolder ?? 'music',
+        id: 'neurowake-audio-file',
       });
       await associateHandle(titreId, handle);
       return handle.getFile();
@@ -342,6 +377,50 @@ export async function getFileMeta(titreId: string): Promise<FileMeta | null> {
 /** All titre IDs that have at least a filename meta stored. */
 export async function getAssociatedIds(): Promise<string[]> {
   return _idbAllKeys(STORE_META);
+}
+
+// ── Music folder management ──────────────────────────────────────────────────
+
+/**
+ * Open a system directory picker (starting in the OS Music folder), then
+ * automatically create a "NeuroWake Music" subfolder inside the chosen
+ * location. The subfolder handle is persisted in IndexedDB so that future
+ * file pickers (showOpenFilePicker) open directly in that folder.
+ *
+ * Must be called from a user gesture (click handler).
+ * Returns the created/existing subfolder handle, or null if cancelled/unsupported.
+ */
+export async function setupMusicFolder(): Promise<FileSystemDirectoryHandle | null> {
+  if (!supportsFileSystemAccess()) return null;
+  try {
+    const parentHandle = await (window as unknown as FSAWindow).showDirectoryPicker({
+      startIn: 'music',
+      mode: 'readwrite',
+      id: 'neurowake-parent-dir',
+    });
+    // Create "NeuroWake Music" subfolder — no-op if it already exists.
+    const nwHandle = await parentHandle.getDirectoryHandle('NeuroWake Music', { create: true });
+    await _idbPut(STORE_DIR, 'musicFolder', nwHandle);
+    return nwHandle;
+  } catch (err: unknown) {
+    if ((err as { name?: string })?.name === 'AbortError') return null; // user cancelled
+    console.warn('[LocalAudioStore] setupMusicFolder error:', (err as Error)?.message);
+    return null;
+  }
+}
+
+/**
+ * Return the persisted "NeuroWake Music" directory handle, or null if not yet set up.
+ */
+export async function getMusicFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
+  return (await _idbGet<FileSystemDirectoryHandle>(STORE_DIR, 'musicFolder')) ?? null;
+}
+
+/**
+ * True if a "NeuroWake Music" folder handle has been stored in IndexedDB.
+ */
+export async function hasMusicFolder(): Promise<boolean> {
+  return (await getMusicFolderHandle()) !== null;
 }
 
 /**
