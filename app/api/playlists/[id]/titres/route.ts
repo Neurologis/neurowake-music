@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   // Fetch junction rows ordered by ordre
   const { data: junctions, error: jErr } = await supabase
-    .from('playlist_titres')
+    .from('playlists_titres')
     .select('titre_id, ordre')
     .eq('playlist_id', params.id)
     .order('ordre', { ascending: true });
@@ -91,12 +91,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Compute next ordre value
   const { count } = await supabase
-    .from('playlist_titres')
+    .from('playlists_titres')
     .select('id', { count: 'exact', head: true })
     .eq('playlist_id', params.id);
 
   const { error: insErr } = await supabase
-    .from('playlist_titres')
+    .from('playlists_titres')
     .insert({ playlist_id: params.id, titre_id: parsed.data.titre_id, ordre: count ?? 0 });
 
   if (insErr) {
@@ -128,7 +128,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!playlist) return apiError('Playlist not found', 'NOT_FOUND', 404);
 
   const { error: delErr } = await supabase
-    .from('playlist_titres')
+    .from('playlists_titres')
     .delete()
     .eq('playlist_id', params.id)
     .eq('titre_id', parsed.data.titre_id);

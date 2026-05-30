@@ -48,7 +48,7 @@ export default function ParametresPage() {
       const { profil: p } = await profilRes.json();
       if (p) setProfil(p);
     }
-    if (!aboRes.error && aboRes.data) setAbonnement(aboRes.data);
+   if (!aboRes.error && aboRes.data) setAbonnement(aboRes.data as Abonnement);
   }
 
   async function saveProfile(updates: Partial<Profil>) {
