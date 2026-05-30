@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase/server';
+import { generatePersonalizedAdvice } from '@/lib/services/anthropic';
 
 const validPhases = ['matin', 'soins', 'repas', 'apres-midi', 'coucher'];
 
@@ -17,16 +18,16 @@ export async function GET(
 
   const supabase = createServerClient();
 
-  // Get user language
+  // Langue et profil utilisateur
   const { data: profil } = await supabase
     .from('profils')
-    .select('langue')
+    .select('langue, genres_preferes, passions, bump_annee_debut, bump_annee_fin')
     .eq('user_id', userId)
     .single();
 
   const langue = profil?.langue ?? 'fr';
 
-  // Get already seen conseils
+  // Conseils déjà vus
   const { data: vus } = await supabase
     .from('conseils_affichages')
     .select('conseil_id')
@@ -34,10 +35,10 @@ export async function GET(
 
   const vusIds = (vus ?? []).map((v) => v.conseil_id);
 
-  // Get unseen conseil
   type Phase = 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
   type Langue = 'fr' | 'es' | 'en';
 
+  // Cherche un conseil non vu en base
   let query = supabase
     .from('conseils')
     .select('id, texte')
@@ -53,7 +54,7 @@ export async function GET(
 
   let { data: conseil } = await query;
 
-  // If all seen, reset rotation
+  // Reset rotation si tous vus
   if (!conseil || conseil.length === 0) {
     await supabase
       .from('conseils_affichages')
@@ -72,15 +73,24 @@ export async function GET(
     conseil = reset;
   }
 
-  if (!conseil || conseil.length === 0) {
-    return NextResponse.json({ conseil: null });
+  // Conseil trouvé en base → marquer vu et retourner
+  if (conseil && conseil.length > 0) {
+    await supabase.from('conseils_affichages').insert({
+      user_id: userId,
+      conseil_id: conseil[0].id,
+    });
+    return NextResponse.json({ conseil: conseil[0].texte });
   }
 
-  // Mark as seen
-  await supabase.from('conseils_affichages').insert({
-    user_id: userId,
-    conseil_id: conseil[0].id,
-  });
-
-  return NextResponse.json({ conseil: conseil[0].texte });
+  // Aucun conseil en base → générer avec l'IA
+  try {
+    const texte = await generatePersonalizedAdvice(
+      profil ?? {},
+      params.phase,
+      langue
+    );
+    return NextResponse.json({ conseil: texte });
+  } catch {
+    return NextResponse.json({ conseil: null });
+  }
 }
