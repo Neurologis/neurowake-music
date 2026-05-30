@@ -404,26 +404,35 @@ Status 'ok' → lecteur peut lire le fichier directement
 ## 6. COMPOSANTS CLÉS
 
 ### `lib/local-audio-store.ts`
-Module central de gestion des fichiers audio locaux.
+Module central de gestion des fichiers audio locaux. **Version 3** — persistance universelle.
 
 ```typescript
-// IndexedDB — DB: 'neurowake-audio-v1' version 2
-// Stores: 'handles' (FSA handles), 'meta' (FileMeta), 'rootDir' (dossier NeuroWake Music)
+// IndexedDB — DB: 'neurowake-audio-v1' version 3
+// Stores:
+//   'handles'  — FileSystemFileHandle (desktop persistent, Chrome/Edge)
+//   'meta'     — FileMeta (filename hint, tous navigateurs)
+//   'rootDir'  — FileSystemDirectoryHandle pour NeuroWake Music
+//   'blobs'    — { buffer: ArrayBuffer, type: string } — persistance universelle (v3)
+//
+// Priorité getUrl() : cache session → FSA handle → blob IndexedDB
+// → les fichiers sont disponibles sur TOUS les navigateurs sans re-sélection
 
-supportsFileSystemAccess()   // showOpenFilePicker disponible ?
-supportsDirectoryPicker()    // showDirectoryPicker disponible ? (Chrome/Edge uniquement)
-pickAndAssociate(titreId)    // Ouvre picker → associeHandle ou associateFile
-associateHandle(id, handle)  // FSA — persistant entre sessions
-associateFile(id, file)      // Session-only (mobile/Firefox fallback)
-getUrl(titreId)              // URL blob si permission 'granted', null sinon
-requestPermission(titreId)   // Demande permission FSA (user gesture requis)
-getFileStatus(titreId)       // 'ok' | 'pending' | 'missing'
-checkStatuses(ids[])         // Batch check
-removeAssociation(titreId)   // Supprime URL + handle + meta
-setupMusicFolder()           // showDirectoryPicker → crée 'NeuroWake Music'
-copyToMusicFolder(file)      // Copie un File dans le dossier configuré
-hasMusicFolder()             // true si dossier configuré dans IndexedDB
-revokeAllUrls()              // Révoque toutes les blob URLs de session
+supportsFileSystemAccess()       // showOpenFilePicker disponible ?
+supportsDirectoryPicker()        // showDirectoryPicker disponible ? (Chrome/Edge uniquement)
+shouldShowIOSStorageWarning()    // true sur iPhone/iPad → afficher bannière avertissement
+IOS_STORAGE_WARNING_KEY          // clé i18n 'ios_storage_warning'
+pickAndAssociate(titreId)        // Ouvre picker → associeHandle (FSA) ou associateFile (fallback)
+associateHandle(id, handle)      // FSA + stocke aussi le binaire en blob
+associateFile(id, file)          // Stocke binaire en IndexedDB — persistant partout
+getUrl(titreId)                  // URL blob : cache → FSA → blob IndexedDB (jamais null si importé)
+requestPermission(titreId)       // FSA permission (desktop) OU restauration blob (mobile, sans geste)
+getFileStatus(titreId)           // 'ok' | 'pending' | 'missing'
+checkStatuses(ids[])             // Batch check
+removeAssociation(titreId)       // Supprime URL + handle + blob + meta
+setupMusicFolder()               // showDirectoryPicker → crée 'NeuroWake Music'
+copyToMusicFolder(file)          // Copie un File dans le dossier configuré (Chrome/Edge)
+hasMusicFolder()                 // true si dossier configuré dans IndexedDB
+revokeAllUrls()                  // Révoque toutes les blob URLs de session (IndexedDB intact)
 ```
 
 ### `hooks/use-audio-player.ts`
@@ -620,13 +629,14 @@ AudioContext
 ### DT-01 — Stockage audio 100% local
 **Décision :** Les fichiers audio ne sont jamais uploadés sur Supabase Storage.
 **Raison :** Droits d'auteur (iTunes, Amazon), coût de stockage, latence.
-**Implémentation :** `lib/local-audio-store.ts` — IndexedDB pour les handles FSA, blob URLs en session, `storage_path` en base = nom du fichier uniquement (hint d'affichage).
+**Implémentation :** `lib/local-audio-store.ts` v3 — le binaire du fichier (ArrayBuffer) est stocké dans IndexedDB (STORE_BLOBS). `storage_path` en base = nom du fichier uniquement (hint d'affichage). Les handles FSA sont un layer supplémentaire desktop-only.
 
-### DT-02 — File System Access API pour la persistance des handles
-**Décision :** Sur Chrome/Edge desktop, les `FileSystemFileHandle` sont persistés dans IndexedDB.
-**Raison :** Permet de retrouver le fichier après rechargement de page sans re-picker.
-**Limitation :** Safari et Firefox n'implémentent pas `showDirectoryPicker`. Sur mobile, les handles sont session-only.
+### DT-02 — Persistance universelle via binaire IndexedDB (v3)
+**Décision :** Le contenu binaire de chaque fichier audio (ArrayBuffer) est stocké dans `STORE_BLOBS` d'IndexedDB dès la première association.
+**Raison :** Les handles FSA ne fonctionnent pas sur iOS/Android/Firefox. Avec le binaire, le fichier est disponible sur **tous** les navigateurs après rechargement, sans re-sélection.
+**Avantage desktop :** Les handles FSA restent en couche supplémentaire — si disponibles et avec permission, ils sont utilisés en priorité (lecture directe du disque, sans charger le binaire en mémoire).
 **Clé IndexedDB :** Toujours l'UUID réel du titre en base (jamais un ID temporaire).
+**Caveat iOS :** iOS peut purger IndexedDB en cas d'espace disque critique + longue inactivité. Une bannière d'avertissement est affichée sur iPhone/iPad (`shouldShowIOSStorageWarning()`, clé i18n `ios_storage_warning`).
 
 ### DT-03 — Créer l'enregistrement DB avant le picker FSA
 **Décision :** Dans `importerFichier` (découverte) et `confirmNewTitre` (titres) : `POST /api/titres` en premier → obtenir l'UUID réel → puis `pickAndAssociate(realId)`.
@@ -722,10 +732,10 @@ AudioContext
 **Action :** Après P-01, exécuter : `npx supabase gen types typescript --project-id [PROJECT_ID] > lib/supabase/types.ts`
 **Impact :** Workaround `as any` dans `app/api/titres/route.ts` ligne ~65.
 
-### P-03 — Handles FSA session-only sur mobile et Firefox
-**Statut :** Limitation browser, non résolvable.
-**Comportement :** Sur iOS Safari, Android Chrome < 86, et Firefox : les `FileSystemFileHandle` ne sont pas persistés entre sessions. L'utilisateur doit ré-associer les fichiers après rechargement.
-**Atténuation :** Le `storage_path` (nom du fichier) est toujours affiché comme hint. Le dossier NeuroWake Music facilite la re-sélection.
+### P-03 — ~~Handles FSA session-only sur mobile et Firefox~~ — RÉSOLU (v3)
+**Statut :** ✅ Résolu dans `local-audio-store.ts` v3.
+**Solution :** Le binaire des fichiers audio (ArrayBuffer) est maintenant persisté dans `STORE_BLOBS` d'IndexedDB. Sur tous les navigateurs (iOS Safari, Firefox, Android), après rechargement, `getUrl()` restaure le fichier depuis le binaire sans aucune re-sélection.
+**Caveat résiduel iOS :** En cas d'espace disque très insuffisant + longue inactivité, iOS peut purger IndexedDB. Une bannière d'avertissement est affichée sur iPhone/iPad (`shouldShowIOSStorageWarning()`).
 
 ### P-04 — ElevenLabs requis pour les messages vocaux
 **Statut :** Fonctionnalité optionnelle.

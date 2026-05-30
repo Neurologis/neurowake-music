@@ -226,6 +226,8 @@ const T = {
     mic_denied_desc:         "Autorisez l'accès au microphone dans les paramètres de votre navigateur.",
     mic_not_found:           'Microphone introuvable',
     mic_not_found_desc:      'Aucun microphone détecté sur cet appareil.',
+    // ── iOS storage warning (local-audio-store.ts) ───────────────────────────
+    ios_storage_warning:     "📱 Sur iPhone/iPad, vos fichiers musicaux sont conservés dans la mémoire de l'application. Dans de rares cas (espace très insuffisant + longue inactivité), iOS peut les effacer. Si cela se produit, il suffit de ré-importer vos fichiers une seule fois.",
     // ── Mobile nav ──────────────────────────────────────────────────────────
     mobile_player:   'Lecteur',
     mobile_tracks:   'Titres',
@@ -455,6 +457,8 @@ const T = {
     mic_denied_desc:         'Permite el acceso al micrófono en la configuración de tu navegador.',
     mic_not_found:           'Micrófono no encontrado',
     mic_not_found_desc:      'No se ha detectado ningún micrófono en este dispositivo.',
+    // ── iOS storage warning (local-audio-store.ts) ───────────────────────────
+    ios_storage_warning:     '📱 En iPhone/iPad, tus archivos musicales se guardan en la memoria de la aplicación. En casos muy raros (poco espacio + larga inactividad), iOS puede borrarlos. Si ocurre, simplemente vuelve a importar tus archivos una sola vez.',
     // ── Mobile nav ──────────────────────────────────────────────────────────
     mobile_player:   'Reproductor',
     mobile_tracks:   'Canciones',
@@ -684,6 +688,8 @@ const T = {
     mic_denied_desc:         'Allow microphone access in your browser settings.',
     mic_not_found:           'Microphone not found',
     mic_not_found_desc:      'No microphone detected on this device.',
+    // ── iOS storage warning (local-audio-store.ts) ───────────────────────────
+    ios_storage_warning:     '📱 On iPhone/iPad, your music files are kept in the app\'s memory. In very rare cases (very low storage + long inactivity), iOS may clear them. If that happens, simply re-import your files once.',
     // ── Mobile nav ──────────────────────────────────────────────────────────
     mobile_player:   'Player',
     mobile_tracks:   'Tracks',

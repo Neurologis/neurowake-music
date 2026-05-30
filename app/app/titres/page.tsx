@@ -69,6 +69,7 @@ export default function TitresPage() {
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [folderSetup, setFolderSetup]               = useState<boolean | null>(null); // null = checking
   const [settingUpFolder, setSettingUpFolder]       = useState(false);
+  const [showIOSWarning, setShowIOSWarning]         = useState(false);
   // Capabilities — set client-side to avoid SSR mismatch
   const [dirPickerSupported, setDirPickerSupported] = useState(false);
   const [platform, setPlatform]                     = useState<'windows' | 'macos' | 'ios' | 'android' | 'other'>('other');
@@ -91,6 +92,7 @@ export default function TitresPage() {
     else if (/windows/.test(ua))                                setPlatform('windows');
     else                                                        setPlatform('other');
     localStore.hasMusicFolder().then(setFolderSetup);
+    setShowIOSWarning(localStore.shouldShowIOSStorageWarning());
   }, []);
 
   async function handleSetupFolder() {
@@ -373,6 +375,14 @@ export default function TitresPage() {
         <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('tracks_title')}</h1>
         <p className="text-muted-foreground text-base">{titres.length} {titres.length > 1 ? 'titres' : 'titre'}</p>
       </div>
+
+      {/* ── Avertissement stockage iOS ──────────────────────────────────────── */}
+      {showIOSWarning && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-blue-800">{t('ios_storage_warning')}</p>
+        </div>
+      )}
 
       {/* ── Bannière dossier NeuroWake Music ───────────────────────────────── */}
       <Card className="bg-[#4A6FA5]/5 border-[#4A6FA5]/30">

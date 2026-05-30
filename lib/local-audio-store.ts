@@ -12,16 +12,20 @@
  *   On the next session the handle is retrieved and permission re-requested;
  *   in most cases Chrome auto-grants without a prompt.
  *
- * Mobile / Firefox fallback:
- *   Plain File objects live in memory for the current tab session only.
- *   After a page reload the user must re-associate files via the file picker.
+ * Mobile / Firefox / Safari — ALL platforms (v3+):
+ *   The file's binary content (ArrayBuffer) is stored in IndexedDB (STORE_BLOBS).
+ *   The file is imported ONCE — it is then available across all sessions
+ *   without any re-selection, on every browser and every device.
+ *
+ *   ⚠️ iOS caveat: iOS may purge IndexedDB storage when the device runs very low
+ *   on space and the app has not been used for a long time. In that rare case the
+ *   user will need to re-import their files. A warning banner is shown on iOS to
+ *   inform caregivers of this possibility (see `shouldShowIOSStorageWarning()`).
  *
  * Object URLs are created on demand and revoked automatically when no longer needed.
  */
 
 // ── File System Access API type extensions ───────────────────────────────────
-// TypeScript's built-in lib does not yet include queryPermission / requestPermission
-// nor showDirectoryPicker on window.
 interface FSAFileHandle extends FileSystemFileHandle {
   queryPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
   requestPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
@@ -49,10 +53,11 @@ interface FSAWindow extends Window {
 // ── IndexedDB ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'neurowake-audio-v1';
-const DB_VERSION = 2;                    // v2 adds STORE_DIR
+const DB_VERSION = 3;                    // v3 adds STORE_BLOBS for universal persistence
 const STORE_HANDLES = 'handles'; // FileSystemFileHandle (desktop persistent)
 const STORE_META    = 'meta';    // FileMeta (filename hint, works everywhere)
 const STORE_DIR     = 'rootDir'; // FileSystemDirectoryHandle for NeuroWake Music folder
+const STORE_BLOBS   = 'blobs';   // ArrayBuffer — universal persistence (mobile, Firefox, Safari)
 
 export interface FileMeta {
   filename: string;
@@ -83,6 +88,7 @@ function _openDB(): Promise<IDBDatabase | null> {
       if (!db.objectStoreNames.contains(STORE_HANDLES)) db.createObjectStore(STORE_HANDLES);
       if (!db.objectStoreNames.contains(STORE_META))    db.createObjectStore(STORE_META);
       if (!db.objectStoreNames.contains(STORE_DIR))     db.createObjectStore(STORE_DIR);
+      if (!db.objectStoreNames.contains(STORE_BLOBS))   db.createObjectStore(STORE_BLOBS);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => { console.warn('[LocalAudioStore] IndexedDB unavailable'); resolve(null); };
@@ -145,12 +151,41 @@ function _ext(filename: string): string {
   return filename.slice(filename.lastIndexOf('.') + 1).toLowerCase() || 'audio';
 }
 
+/**
+ * Detect iOS devices (iPhone, iPad, iPod).
+ * Used to show the storage-eviction warning banner.
+ */
+function _isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// ── iOS Storage Warning ──────────────────────────────────────────────────────
+
+/**
+ * Returns true if a storage warning banner should be displayed to the user.
+ *
+ * On iOS, the browser may evict IndexedDB data when the device runs critically
+ * low on storage and the app has not been used for an extended period.
+ * In that rare case, caregivers would need to re-import their audio files.
+ *
+ * Show this banner once during onboarding or first file import on iOS.
+ */
+export function shouldShowIOSStorageWarning(): boolean {
+  return _isIOS();
+}
+
+/**
+ * i18n key for the iOS warning message to display in the UI.
+ * See lib/i18n.ts — key 'ios_storage_warning'.
+ */
+export const IOS_STORAGE_WARNING_KEY = 'ios_storage_warning';
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * True if the browser supports the File System Access file-picker API.
- * Chrome 86+, Edge 86+, Opera 72+, Safari 15.2+, Firefox 111+.
- * Used for opening individual audio files.
  */
 export function supportsFileSystemAccess(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
@@ -158,25 +193,36 @@ export function supportsFileSystemAccess(): boolean {
 
 /**
  * True if the browser supports the directory-picker API (`showDirectoryPicker`).
- * Needed for automatic folder creation — Chrome 86+, Edge 86+, Chrome Android 86+.
- * NOT available in Safari (macOS or iOS) or Firefox as of 2025.
+ * Chrome 86+, Edge 86+, Chrome Android 86+. NOT available in Safari or Firefox.
  */
 export function supportsDirectoryPicker(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 }
 
 /**
- * Associate a plain File object (session-only — works on all platforms).
- * The object URL is created immediately and lives until `removeAssociation`
- * or `revokeAllUrls` is called.
+ * Associate a plain File object.
+ * The file's binary content is stored in IndexedDB (STORE_BLOBS) so it
+ * persists across sessions on ALL platforms — including iOS Safari, Android,
+ * and Firefox — without any re-selection required.
  */
 export async function associateFile(titreId: string, file: File): Promise<void> {
   // Revoke previous URL for this ID if any
   const old = _urls.get(titreId);
   if (old) URL.revokeObjectURL(old);
 
+  // Store the binary content for cross-session persistence on all platforms
+  try {
+    const buffer = await file.arrayBuffer();
+    await _idbPut(STORE_BLOBS, titreId, { buffer, type: file.type || 'audio/mpeg' });
+  } catch (err) {
+    console.warn('[LocalAudioStore] Could not persist blob to IndexedDB:', (err as Error)?.message);
+    // Continue anyway — URL will work for this session
+  }
+
+  // Create object URL for immediate playback
   _urls.set(titreId, URL.createObjectURL(file));
 
+  // Store metadata (filename hint)
   await _idbPut(STORE_META, titreId, {
     filename: file.name,
     size: file.size,
@@ -185,28 +231,50 @@ export async function associateFile(titreId: string, file: File): Promise<void> 
 }
 
 /**
- * Associate via FileSystemFileHandle (persists across sessions on desktop).
- * Requires File System Access API support.
+ * Associate via FileSystemFileHandle (desktop persistent, Chrome/Edge).
+ * Also stores the binary blob for universal fallback.
  */
 export async function associateHandle(titreId: string, handle: FileSystemFileHandle): Promise<void> {
   const file = await handle.getFile();
-  // Create the object URL (registers in _urls)
+  // associateFile stores the blob + meta + creates URL
   await associateFile(titreId, file);
-  // Cache and persist the handle
+  // Cache and persist the FSA handle (desktop extra layer)
   _handles.set(titreId, handle);
   await _idbPut(STORE_HANDLES, titreId, handle);
 }
 
 /**
+ * Restore a playable URL from the persisted blob in IndexedDB.
+ * Called automatically by getUrl() — no user gesture required.
+ */
+async function _restoreFromBlob(titreId: string): Promise<string | null> {
+  const stored = await _idbGet<{ buffer: ArrayBuffer; type: string }>(STORE_BLOBS, titreId);
+  if (!stored?.buffer) return null;
+  try {
+    const blob = new Blob([stored.buffer], { type: stored.type || 'audio/mpeg' });
+    const url  = URL.createObjectURL(blob);
+    _urls.set(titreId, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get a playable object URL for a titre.
- * For desktop FSA handles with 'granted' permission, the URL is created automatically
- * (silent restore). Returns null when permission requires a user gesture or no file exists.
+ *
+ * Priority order:
+ * 1. Session cache (instant)
+ * 2. FSA handle with granted permission (desktop, silent restore)
+ * 3. Persisted blob in IndexedDB (ALL platforms — mobile, Firefox, Safari)
+ *
+ * Returns null only when no file has ever been associated.
  */
 export async function getUrl(titreId: string): Promise<string | null> {
-  // Fast path: already in session cache
+  // 1. Fast path: already in session cache
   if (_urls.has(titreId)) return _urls.get(titreId)!;
 
-  // Try to restore from FSA handle
+  // 2. Try to restore from FSA handle (desktop)
   const handle = _handles.get(titreId)
     ?? await _idbGet<FileSystemFileHandle>(STORE_HANDLES, titreId);
 
@@ -220,52 +288,56 @@ export async function getUrl(titreId: string): Promise<string | null> {
         _handles.set(titreId, handle);
         return url;
       }
-      // 'prompt' or 'denied' — needs a user gesture, return null
     } catch {
-      // Handle stale (file moved / deleted)
       _handles.delete(titreId);
       await _idbDelete(STORE_HANDLES, titreId);
     }
   }
 
-  return null;
+  // 3. Universal fallback: restore from persisted blob (mobile, Firefox, Safari)
+  return _restoreFromBlob(titreId);
 }
 
 /**
- * Request FSA permission for a stored handle (MUST be called from a user gesture).
- * Returns the object URL if permission was granted, null otherwise.
+ * Request FSA permission for a stored handle (desktop, needs user gesture).
+ * On mobile/Firefox/Safari, restores from blob automatically (no gesture needed).
  */
 export async function requestPermission(titreId: string): Promise<string | null> {
+  // Try FSA handle first (desktop)
   const handle = _handles.get(titreId)
     ?? await _idbGet<FileSystemFileHandle>(STORE_HANDLES, titreId);
-  if (!handle) return null;
-  try {
-    const perm = await (handle as FSAFileHandle).requestPermission({ mode: 'read' });
-    if (perm === 'granted') {
-      const file = await handle.getFile();
-      const url  = URL.createObjectURL(file);
-      _urls.set(titreId, url);
-      _handles.set(titreId, handle);
-      return url;
+
+  if (handle) {
+    try {
+      const perm = await (handle as FSAFileHandle).requestPermission({ mode: 'read' });
+      if (perm === 'granted') {
+        const file = await handle.getFile();
+        const url  = URL.createObjectURL(file);
+        _urls.set(titreId, url);
+        _handles.set(titreId, handle);
+        return url;
+      }
+    } catch {
+      _handles.delete(titreId);
+      await _idbDelete(STORE_HANDLES, titreId);
     }
-  } catch {
-    _handles.delete(titreId);
-    await _idbDelete(STORE_HANDLES, titreId);
   }
-  return null;
+
+  // Fallback: restore from blob (works without user gesture on mobile)
+  return _restoreFromBlob(titreId);
 }
 
 /**
  * Full status check for a titre ID.
- * 'ok'      — URL ready
- * 'pending' — handle/meta stored but URL not yet created (needs user action)
+ * 'ok'      — URL ready or blob available (can play immediately)
+ * 'pending' — FSA handle stored but needs permission prompt (desktop only, no blob)
  * 'missing' — nothing stored
  */
 export async function getFileStatus(titreId: string): Promise<FileStatus> {
   // Fast path: URL already in session
   if (_urls.has(titreId)) return 'ok';
 
-  // Try handle
+  // Try FSA handle (desktop)
   const handle = _handles.get(titreId)
     ?? await _idbGet<FileSystemFileHandle>(STORE_HANDLES, titreId);
 
@@ -273,21 +345,31 @@ export async function getFileStatus(titreId: string): Promise<FileStatus> {
     try {
       const perm = await (handle as FSAFileHandle).queryPermission({ mode: 'read' });
       if (perm === 'granted') {
-        // Silently restore URL
         const file = await handle.getFile();
         _urls.set(titreId, URL.createObjectURL(file));
         _handles.set(titreId, handle);
         return 'ok';
       }
-      if (perm === 'prompt') return 'pending';
-      // 'denied' → handle is useless but meta might exist
+      if (perm === 'prompt') {
+        // Before returning 'pending', check if blob is available as fallback
+        const blobUrl = await _restoreFromBlob(titreId);
+        if (blobUrl) return 'ok';
+        return 'pending';
+      }
     } catch {
       _handles.delete(titreId);
       await _idbDelete(STORE_HANDLES, titreId);
     }
   }
 
-  // Check if we at least have the filename meta (mobile: file was associated this tab)
+  // Check persisted blob (mobile, Firefox, Safari — universal)
+  const stored = await _idbGet<{ buffer: ArrayBuffer }>(STORE_BLOBS, titreId);
+  if (stored?.buffer) {
+    const blobUrl = await _restoreFromBlob(titreId);
+    if (blobUrl) return 'ok';
+  }
+
+  // Check filename meta as last resort
   const meta = await _idbGet<FileMeta>(STORE_META, titreId);
   return meta ? 'pending' : 'missing';
 }
@@ -304,8 +386,7 @@ export async function checkStatuses(titreIds: string[]): Promise<Record<string, 
 
 /**
  * Open a file picker and associate the result with a titre.
- * Desktop: tries File System Access API (persistent handle).
- * Mobile / fallback: plain <input type="file"> (session-only).
+ * The file is stored persistently in IndexedDB on ALL platforms.
  * Must be called from a user gesture (click handler, etc.).
  * Returns the picked File, or null if the user cancelled.
  */
@@ -320,7 +401,6 @@ export async function pickAndAssociate(titreId: string): Promise<File | null> {
   // ── Desktop: File System Access API ────────────────────────────────────────
   if (supportsFileSystemAccess()) {
     try {
-      // Open picker in the stored NeuroWake Music folder if available; fall back to 'music'.
       const musicFolder = await getMusicFolderHandle();
       const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
         types: [audioAccept],
@@ -329,16 +409,16 @@ export async function pickAndAssociate(titreId: string): Promise<File | null> {
         startIn: musicFolder ?? 'music',
         id: 'neurowake-audio-file',
       });
-      await associateHandle(titreId, handle);
+      await associateHandle(titreId, handle); // stores FSA handle + blob
       return handle.getFile();
     } catch (err: unknown) {
-      if ((err as { name?: string })?.name === 'AbortError') return null; // user cancelled
-      // FSA failed for another reason — fall through to file input
+      if ((err as { name?: string })?.name === 'AbortError') return null;
       console.warn('[LocalAudioStore] FSA picker failed, using <input>:', (err as Error)?.message);
     }
   }
 
-  // ── Mobile / fallback: <input type="file"> ─────────────────────────────────
+  // ── Mobile / Firefox / Safari: <input type="file"> ─────────────────────────
+  // The file is stored as a blob in IndexedDB — persistent across sessions.
   return new Promise<File | null>((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -348,17 +428,16 @@ export async function pickAndAssociate(titreId: string): Promise<File | null> {
     input.onchange = async () => {
       resolved = true;
       const file = input.files?.[0] ?? null;
-      if (file) await associateFile(titreId, file);
+      if (file) await associateFile(titreId, file); // stores blob persistently
       resolve(file);
     };
-    // Some browsers never fire onchange on cancel — resolve after a delay
     setTimeout(() => { if (!resolved) resolve(null); }, 60_000);
     input.click();
   });
 }
 
 /**
- * Remove a file association completely (URL + handle + meta).
+ * Remove a file association completely (URL + handle + blob + meta).
  */
 export async function removeAssociation(titreId: string): Promise<void> {
   const url = _urls.get(titreId);
@@ -367,9 +446,10 @@ export async function removeAssociation(titreId: string): Promise<void> {
   _handles.delete(titreId);
   await _idbDelete(STORE_HANDLES, titreId);
   await _idbDelete(STORE_META,    titreId);
+  await _idbDelete(STORE_BLOBS,   titreId); // free the stored binary
 }
 
-/** Return the stored filename hint for a titre (for display when file is pending/missing). */
+/** Return the stored filename hint for a titre. */
 export async function getFileMeta(titreId: string): Promise<FileMeta | null> {
   return (await _idbGet<FileMeta>(STORE_META, titreId)) ?? null;
 }
@@ -382,13 +462,9 @@ export async function getAssociatedIds(): Promise<string[]> {
 // ── Music folder management ──────────────────────────────────────────────────
 
 /**
- * Open a system directory picker (starting in the OS Music folder), then
- * automatically create a "NeuroWake Music" subfolder inside the chosen
- * location. The subfolder handle is persisted in IndexedDB so that future
- * file pickers (showOpenFilePicker) open directly in that folder.
- *
- * Must be called from a user gesture (click handler).
- * Returns the created/existing subfolder handle, or null if cancelled/unsupported.
+ * Open a system directory picker, then create a "NeuroWake Music" subfolder.
+ * The handle is persisted in IndexedDB for future file pickers.
+ * Must be called from a user gesture. Returns the subfolder handle or null.
  */
 export async function setupMusicFolder(): Promise<FileSystemDirectoryHandle | null> {
   if (!supportsFileSystemAccess()) return null;
@@ -398,46 +474,35 @@ export async function setupMusicFolder(): Promise<FileSystemDirectoryHandle | nu
       mode: 'readwrite',
       id: 'neurowake-parent-dir',
     });
-    // Create "NeuroWake Music" subfolder — no-op if it already exists.
     const nwHandle = await parentHandle.getDirectoryHandle('NeuroWake Music', { create: true });
     await _idbPut(STORE_DIR, 'musicFolder', nwHandle);
-    // Also persist the parent folder name so the UI can display the full path hint.
     await _idbPut(STORE_DIR, 'musicFolderParentName', parentHandle.name);
     return nwHandle;
   } catch (err: unknown) {
-    if ((err as { name?: string })?.name === 'AbortError') return null; // user cancelled
+    if ((err as { name?: string })?.name === 'AbortError') return null;
     console.warn('[LocalAudioStore] setupMusicFolder error:', (err as Error)?.message);
     return null;
   }
 }
 
-/**
- * Return the name of the parent folder the user chose when calling setupMusicFolder().
- * e.g. "Musique", "Music", "Downloads".
- * Returns null if never set (manual-folder flow or folder not yet configured).
- */
 export async function getMusicFolderParentName(): Promise<string | null> {
   return (await _idbGet<string>(STORE_DIR, 'musicFolderParentName')) ?? null;
 }
 
 /**
- * Copy a File into the NeuroWake Music folder (if one has been configured).
- * Uses the File System Access API — no-op if FSA unavailable or folder not set up.
+ * Copy a File into the NeuroWake Music folder (if configured, Chrome/Edge only).
  * Returns true on success, false if unavailable or on error.
  */
 export async function copyToMusicFolder(file: File): Promise<boolean> {
   if (!supportsDirectoryPicker()) return false;
   const dirHandle = await getMusicFolderHandle();
   if (!dirHandle) return false;
-
   try {
-    // FileSystemDirectoryHandle.getFileHandle + createWritable are FSA-only
     const fh = await (dirHandle as unknown as {
       getFileHandle(name: string, opts: { create: boolean }): Promise<{
         createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }>;
       }>;
     }).getFileHandle(file.name, { create: true });
-
     const writable = await fh.createWritable();
     await writable.write(file);
     await writable.close();
@@ -448,24 +513,19 @@ export async function copyToMusicFolder(file: File): Promise<boolean> {
   }
 }
 
-/**
- * Return the persisted "NeuroWake Music" directory handle, or null if not yet set up.
- */
+/** Return the persisted NeuroWake Music directory handle, or null if not set up. */
 export async function getMusicFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
   return (await _idbGet<FileSystemDirectoryHandle>(STORE_DIR, 'musicFolder')) ?? null;
 }
 
-/**
- * True if a "NeuroWake Music" folder handle has been stored in IndexedDB.
- */
+/** True if a NeuroWake Music folder handle has been stored in IndexedDB. */
 export async function hasMusicFolder(): Promise<boolean> {
   return (await getMusicFolderHandle()) !== null;
 }
 
 /**
  * Revoke all object URLs for the current session.
- * Call on component unmount or page unload.
- * Does NOT clear IndexedDB (handles/meta persist for next session).
+ * Does NOT clear IndexedDB (handles/meta/blobs persist for next session).
  */
 export function revokeAllUrls(): void {
   _urls.forEach((url) => URL.revokeObjectURL(url));
