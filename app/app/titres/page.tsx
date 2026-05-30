@@ -875,6 +875,13 @@ export default function TitresPage() {
         </div>
       )}
 
+      {/* ── Avertissement iOS ──────────────────────────────────────────────────── */}
+{localStore.shouldShowIOSStorageWarning() && (
+  <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+    <Info className="h-5 w-5 mt-0.5 shrink-0 text-amber-500" />
+    <p>{t('ios_storage_warning')}</p>
+  </div>
+)}
       {/* ── Légende ─────────────────────────────────────────────────────────── */}
       {titres.length > 0 && (
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
