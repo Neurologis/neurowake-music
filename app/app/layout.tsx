@@ -23,7 +23,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!profil || !profil.onboarding_complet) {
     redirect('/onboarding');
   }
+// Vérification abonnement — bloquer si trial expiré sans abonnement actif
+  const { data: abonnement } = await supabase
+    .from('abonnements')
+    .select('statut, trial_ends_at, current_period_end')
+    .eq('user_id', session.user.id)
+    .single();
 
+  if (abonnement) {
+    const now = new Date();
+    const isTrialExpired =
+      abonnement.statut === 'trial' &&
+      abonnement.trial_ends_at &&
+      new Date(abonnement.trial_ends_at) < now;
+    const isInactive =
+      abonnement.statut === 'inactif' || abonnement.statut === 'suspendu';
+
+    if (isTrialExpired || isInactive) {
+      redirect('/subscribe');
+    }
+  }
   // Redirect to découverte if the user has recommended titles that are all
   // still in the initial 'propose' state — meaning they haven't gone through
   // the music-discovery step yet (e.g., closed the browser right after onboarding).
