@@ -137,7 +137,7 @@ export default function PlayerPage() {
 
   const player = useAudioPlayer(
     profil?.gamma_gain ?? 0.04,
-    profil?.gamma_mode ?? 'binaural'
+    profil?.gamma_mode ?? 'am'
   );
 
   useEffect(() => {
@@ -616,59 +616,93 @@ export default function PlayerPage() {
         </Card>
 
         {/* Gamma 40Hz */}
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-base">{t('gamma_title')}</p>
-                <p className="text-sm text-muted-foreground">{t('gamma_desc')}</p>
-              </div>
-              <Switch checked={player.gammaEnabled} onCheckedChange={player.setGammaEnabled} />
-            </div>
+        {/* Gamma 40Hz */}
+<Card>
+  <CardContent className="p-4 space-y-4">
+    {/* Stimulation 40Hz */}
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="font-semibold text-base">{t('gamma_title')}</p>
+        <p className="text-sm text-muted-foreground">{t('gamma_40hz_desc_short')}</p>
+      </div>
+      <Switch
+        checked={player.gammaEnabled && player.gammaMode !== 'binaural'}
+        onCheckedChange={(v) => {
+          if (v) {
+            player.setGammaMode('am');
+            player.setGammaEnabled(true);
+          } else {
+            player.setGammaEnabled(false);
+          }
+        }}
+      />
+    </div>
 
-            {player.gammaEnabled && (
-              <>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">{t('music_volume_label').replace('musique', '40Hz')}</p>
-                  <div className="flex justify-between text-sm mb-2">
-                    {gammaLabelKeys.map((labelKey, i) => (
-                      <button
-                        key={labelKey}
-                        className={`text-base px-2 py-0.5 rounded ${getGammaLevel() === i ? 'text-[#4A6FA5] font-semibold bg-[#4A6FA5]/10' : 'text-muted-foreground'}`}
-                        onClick={() => player.setGammaGain(gammaValues[i])}
-                      >
-                        {t(labelKey)}
-                      </button>
-                    ))}
-                  </div>
-                  <Slider
-                    value={[player.gammaGain * 1000]}
-                    min={20}
-                    max={80}
-                    step={10}
-                    onValueChange={([v]) => player.setGammaGain(v / 1000)}
-                  />
-                </div>
+    {player.gammaEnabled && player.gammaMode !== 'binaural' && (
+      <>
+        <div>
+          <div className="flex justify-between text-sm mb-2">
+            {gammaLabelKeys.map((labelKey, i) => (
+              <button
+                key={labelKey}
+                className={`text-base px-2 py-0.5 rounded ${getGammaLevel() === i ? 'text-[#4A6FA5] font-semibold bg-[#4A6FA5]/10' : 'text-muted-foreground'}`}
+                onClick={() => player.setGammaGain(gammaValues[i])}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+          <Slider
+            value={[player.gammaGain * 1000]}
+            min={20}
+            max={80}
+            step={10}
+            onValueChange={([v]) => player.setGammaGain(v / 1000)}
+          />
+        </div>
+        <div className="flex gap-2">
+          {(['monaural', 'am'] as GammaMode[]).map((mode) => (
+            <Button
+              key={mode}
+              size="sm"
+              variant={player.gammaMode === mode ? 'default' : 'outline'}
+              className={`text-base h-auto py-2 px-3 ${player.gammaMode === mode ? 'bg-[#4A6FA5]' : ''}`}
+              onClick={() => player.setGammaMode(mode)}
+            >
+              {mode === 'monaural' ? t('gamma_monaural') : t('gamma_am')}
+            </Button>
+          ))}
+        </div>
+      </>
+    )}
 
-                {!profil?.acouphenes && (
-                  <div className="flex gap-2 flex-wrap">
-                    {(['binaural', 'monaural', 'am'] as GammaMode[]).map((mode) => (
-                      <Button
-                        key={mode}
-                        size="sm"
-                        variant={player.gammaMode === mode ? 'default' : 'outline'}
-                        className={`text-base h-auto py-2 px-3 ${player.gammaMode === mode ? 'bg-[#4A6FA5]' : ''}`}
-                        onClick={() => player.setGammaMode(mode)}
-                      >
-                        {mode === 'binaural' ? t('gamma_binaural') : mode === 'monaural' ? t('gamma_monaural') : t('gamma_am')}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+    {/* Séparateur */}
+    <div className="border-t border-[#EDEAE3]" />
+
+    {/* Relaxation Binaural */}
+    {!profil?.acouphenes && (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-base">{t('gamma_binaural_relax')}</p>
+            <p className="text-sm text-muted-foreground">{t('gamma_binaural_relax_desc')}</p>
+          </div>
+          <Switch
+            checked={player.gammaEnabled && player.gammaMode === 'binaural'}
+            onCheckedChange={(v) => {
+              if (v) {
+                player.setGammaMode('binaural');
+                player.setGammaEnabled(true);
+              } else {
+                player.setGammaEnabled(false);
+              }
+            }}
+          />
+        </div>
+      </div>
+    )}
+  </CardContent>
+</Card>
 
         {/* Conseil du moment */}
         {conseil && (

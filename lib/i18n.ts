@@ -74,6 +74,9 @@ const T = {
     gamma_binaural:  'Binaural',
     gamma_monaural:  'Monaural',
     gamma_am:        'Modulation AM',
+    gamma_binaural_relax:      'Relaxation Binaural',
+    gamma_binaural_relax_desc: 'Réduction du stress · Nécessite un casque stéréo',
+    gamma_40hz_desc_short:     'Monaural ou AM · Protocole cognitif',
     conseil_title:   'Conseil du moment',
     // ── Tracks page ─────────────────────────────────────────────────────────
     tracks_title:             'Mes titres',
@@ -305,6 +308,9 @@ const T = {
     gamma_binaural:  'Binaural',
     gamma_monaural:  'Monoaural',
     gamma_am:        'Modulación AM',
+    gamma_binaural_relax:      'Relajación Binaural',
+    gamma_binaural_relax_desc: 'Reducción del estrés · Requiere auriculares estéreo',
+    gamma_40hz_desc_short:     'Monoaural o AM · Protocolo cognitivo',
     conseil_title:   'Consejo del momento',
     // ── Tracks page ─────────────────────────────────────────────────────────
     tracks_title:             'Mis canciones',
@@ -536,6 +542,9 @@ const T = {
     gamma_binaural:  'Binaural',
     gamma_monaural:  'Monaural',
     gamma_am:        'AM modulation',
+    gamma_binaural_relax:      'Binaural Relaxation',
+    gamma_binaural_relax_desc: 'Stress reduction · Requires stereo headphones',
+    gamma_40hz_desc_short:     'Monaural or AM · Cognitive protocol',
     conseil_title:   'Tip of the moment',
     // ── Tracks page ─────────────────────────────────────────────────────────
     tracks_title:             'My tracks',
