@@ -1,6 +1,7 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { useT } from '@/hooks/use-t';
-import { storeLangue, type Langue } from '@/lib/i18n';
+import { storeLangue, getStoredLangue, type Langue } from '@/lib/i18n';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,21 +15,38 @@ const LANGS: { code: Langue; flag: string }[] = [
 
 export default function LandingPage() {
   const { t } = useT();
+  const [activeLang, setActiveLang] = useState<Langue>('fr');
+
+  useEffect(() => {
+    setActiveLang(getStoredLangue());
+  }, []);
+
+  function handleLang(code: Langue) {
+    storeLangue(code);
+    setActiveLang(code);
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F5F0]">
       {/* Header */}
       <header className="bg-[#F7F5F0] border-b border-[#EDEAE3]">
         <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/Logo_appli.png" alt="NeuroWake Music" className="h-40 w-auto" />
+          <img src="/logoappli.png" alt="NeuroWake Music" className="h-40 w-auto" />
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
               {LANGS.map(({ code, flag }) => (
                 <button
                   key={code}
-                  onClick={() => storeLangue(code)}
-                  className="text-2xl hover:scale-110 transition-transform leading-none"
+                  onClick={() => handleLang(code)}
                   title={code.toUpperCase()}
+                  className={`
+                    text-2xl leading-none transition-all px-1 py-0.5 rounded
+                    ${activeLang === code
+                      ? 'ring-2 ring-[#4A6FA5] ring-offset-1 scale-110'
+                      : 'hover:scale-110 opacity-70 hover:opacity-100'
+                    }
+                  `}
                 >
                   {flag}
                 </button>
