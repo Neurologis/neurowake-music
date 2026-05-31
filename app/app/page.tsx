@@ -145,7 +145,7 @@ export default function PlayerPage() {
       if (p) {
         setProfil(p);
         if (typeof p.gamma_gain === 'number') player.setGammaGain(p.gamma_gain);
-        if (p.gamma_mode) player.setGammaMode(p.gamma_mode);
+        if (p.gamma_mode && p.gamma_mode !== 'binaural') player.setGammaMode(p.gamma_mode);
         if (p.sensibilite_volume) {
           player.setMusicVolume(VOLUME_MAP[p.sensibilite_volume] ?? 0.85);
         }
