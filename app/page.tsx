@@ -20,7 +20,7 @@ export default function LandingPage() {
       <header className="bg-[#F7F5F0] border-b border-[#EDEAE3]">
         <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/Logo appli.png" alt="NeuroWake Music" className="h-40 w-auto" />
+          <img src="/Logo_appli.png" alt="NeuroWake Music" className="h-40 w-auto" />
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
               {LANGS.map(({ code, flag }) => (
