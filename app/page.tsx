@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Music, Upload, Play, Shield } from 'lucide-react';
 
-const LANGS: { code: Langue; flag: string }[] = [
-  { code: 'fr', flag: '🇫🇷' },
-  { code: 'es', flag: '🇪🇸' },
-  { code: 'en', flag: '🇬🇧' },
+const LANGS: { code: Langue; src: string; alt: string }[] = [
+  { code: 'fr', src: 'https://flagcdn.com/32x24/fr.png', alt: 'Français' },
+  { code: 'es', src: 'https://flagcdn.com/32x24/es.png', alt: 'Español' },
+  { code: 'en', src: 'https://flagcdn.com/32x24/gb.png', alt: 'English' },
 ];
 
 export default function LandingPage() {
@@ -34,21 +34,22 @@ export default function LandingPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logoappli.png" alt="NeuroWake Music" className="h-40 w-auto" />
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1">
-              {LANGS.map(({ code, flag }) => (
+            <div className="flex gap-2 items-center">
+              {LANGS.map(({ code, src, alt }) => (
                 <button
                   key={code}
                   onClick={() => handleLang(code)}
-                  title={code.toUpperCase()}
+                  title={alt}
                   className={`
-                    text-2xl leading-none transition-all px-1 py-0.5 rounded
+                    transition-all rounded overflow-hidden
                     ${activeLang === code
-                      ? 'ring-2 ring-[#4A6FA5] ring-offset-1 scale-110'
-                      : 'hover:scale-110 opacity-70 hover:opacity-100'
+                      ? 'ring-2 ring-[#4A6FA5] ring-offset-1 scale-110 opacity-100'
+                      : 'opacity-60 hover:opacity-100 hover:scale-105'
                     }
                   `}
                 >
-                  {flag}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} width={32} height={24} alt={alt} style={{ display: 'block' }} />
                 </button>
               ))}
             </div>

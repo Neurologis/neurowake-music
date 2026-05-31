@@ -344,10 +344,10 @@ export default function PlayerPage() {
                 ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#4A6FA5]'}`} />
                 : type === 'matin'
                 /* eslint-disable-next-line @next/next/no-img-element */
-                ? <img src="/Matin.png" width={48} height={48} alt="Matin" style={{ objectFit: 'contain' }} className={isActive ? 'brightness-[10]' : ''} />
+                ? <img src="/Matin.png" width={48} height={48} alt="Matin" style={{ objectFit: 'contain', filter: isActive ? 'brightness(0) invert(1)' : 'none' }} />
                 : type === 'repas'
                 /* eslint-disable-next-line @next/next/no-img-element */
-                ? <img src="/Repas.png" width={48} height={48} alt="Repas" style={{ objectFit: 'contain' }} className={isActive ? 'brightness-[10]' : ''} />
+                ? <img src="/Repas.png" width={48} height={48} alt="Repas" style={{ objectFit: 'contain', filter: isActive ? 'brightness(0) invert(1)' : 'none' }} />
                 : <span className="text-3xl leading-none">{t(PHASE_EMOJI_KEYS[type])}</span>
               }
               <span className="text-[15px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
