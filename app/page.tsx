@@ -1,21 +1,44 @@
+'use client';
+import { useT } from '@/hooks/use-t';
+import { storeLangue, type Langue } from '@/lib/i18n';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Music, Upload, Play, Shield } from 'lucide-react';
 
+const LANGS: { code: Langue; flag: string }[] = [
+  { code: 'fr', flag: '🇫🇷' },
+  { code: 'es', flag: '🇪🇸' },
+  { code: 'en', flag: '🇬🇧' },
+];
+
 export default function LandingPage() {
+  const { t } = useT();
   return (
     <div className="min-h-screen bg-[#F7F5F0]">
       {/* Header */}
-      <header className="bg-[#0d0d0d] border-b border-gray-800">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <img src="/logo-neurowake.png" alt="NeuroWake Music" className="h-40 w-auto" />
-          <div className="flex gap-3">
+      <header className="bg-[#F7F5F0] border-b border-[#EDEAE3]">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/Logo appli.png" alt="NeuroWake Music" className="h-40 w-auto" />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {LANGS.map(({ code, flag }) => (
+                <button
+                  key={code}
+                  onClick={() => storeLangue(code)}
+                  className="text-2xl hover:scale-110 transition-transform leading-none"
+                  title={code.toUpperCase()}
+                >
+                  {flag}
+                </button>
+              ))}
+            </div>
             <Link href="/login">
-              <Button variant="outline">Se connecter</Button>
+              <Button variant="outline" size="sm">{t('landing_connect')}</Button>
             </Link>
             <Link href="/signup">
-              <Button className="bg-[#4A6FA5]">Commencer gratuitement</Button>
+              <Button size="sm" className="bg-[#4A6FA5]">{t('landing_start_free')}</Button>
             </Link>
           </div>
         </div>
@@ -24,39 +47,38 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 py-20 text-center">
         <h1 className="text-4xl lg:text-5xl font-bold text-[#2C2C2A] leading-tight mb-6">
-          La musique qui lui parle vraiment
+          {t('landing_hero_title')}
         </h1>
         <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          Créez une playlist personnalisée à partir des souvenirs musicaux de votre proche.
-          Simple pour l&apos;aidant. Profond pour celui qui écoute.
+          {t('landing_hero_desc')}
         </p>
         <Link href="/signup">
           <Button size="lg" className="bg-[#4A6FA5] text-lg px-8 py-4 h-auto">
-            Commencer gratuitement — 14 jours
+            {t('landing_cta_free')}
           </Button>
         </Link>
-        <p className="text-sm text-muted-foreground mt-3">Aucune carte bancaire requise</p>
+        <p className="text-sm text-muted-foreground mt-3">{t('landing_no_card')}</p>
       </section>
 
       {/* 3 étapes */}
       <section className="max-w-4xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-bold text-center text-[#2C2C2A] mb-10">Comment ça marche</h2>
+        <h2 className="text-2xl font-bold text-center text-[#2C2C2A] mb-10">{t('landing_how_title')}</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
               icon: <Music className="h-8 w-8 text-[#4A6FA5]" />,
-              title: 'Créer le profil',
-              desc: 'Quelques questions sur sa jeunesse, ses goûts musicaux et ses passions',
+              title: t('landing_step1_title'),
+              desc:  t('landing_step1_desc'),
             },
             {
               icon: <Upload className="h-8 w-8 text-[#4A6FA5]" />,
-              title: 'Importer la musique',
-              desc: 'Validez les titres suggérés et importez vos fichiers audio depuis votre collection',
+              title: t('landing_step2_title'),
+              desc:  t('landing_step2_desc'),
             },
             {
               icon: <Play className="h-8 w-8 text-[#4A6FA5]" />,
-              title: 'Lancer la session',
-              desc: 'Profitez de playlists adaptées à chaque moment de la journée avec messages vocaux',
+              title: t('landing_step3_title'),
+              desc:  t('landing_step3_desc'),
             },
           ].map((step, i) => (
             <Card key={i} className="text-center">
@@ -75,9 +97,9 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto px-4">
           <div className="grid md:grid-cols-3 gap-6 text-center">
             {[
-              { emoji: '📱', label: 'Fonctionne sur tous les appareils' },
-              { emoji: '🎵', label: 'Aucun abonnement musical requis' },
-              { emoji: '🎙️', label: 'Messages avec votre propre voix' },
+              { emoji: '📱', label: t('landing_feat1') },
+              { emoji: '🎵', label: t('landing_feat2') },
+              { emoji: '🎙️', label: t('landing_feat3') },
             ].map((f, i) => (
               <div key={i} className="p-6">
                 <div className="text-4xl mb-3">{f.emoji}</div>
@@ -90,11 +112,11 @@ export default function LandingPage() {
 
       {/* CTA final */}
       <section className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-[#2C2C2A] mb-4">Prêt à commencer ?</h2>
-        <p className="text-muted-foreground mb-8">14 jours gratuits, sans engagement</p>
+        <h2 className="text-2xl font-bold text-[#2C2C2A] mb-4">{t('landing_cta_title')}</h2>
+        <p className="text-muted-foreground mb-8">{t('landing_cta_desc')}</p>
         <Link href="/signup">
           <Button size="lg" className="bg-[#4A6FA5] text-lg px-8 py-4 h-auto">
-            Créer mon compte
+            {t('landing_create_account')}
           </Button>
         </Link>
       </section>
@@ -104,7 +126,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto px-4 text-center space-y-2">
           <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
             <Shield className="h-4 w-4" />
-            <span>NeuroWake Music n&apos;est pas un dispositif médical</span>
+            <span>{t('landing_disclaimer')}</span>
           </div>
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} NeuroWake Music · <Link href="mailto:contact@neurologis.fr" className="hover:underline">contact@neurologis.fr</Link>

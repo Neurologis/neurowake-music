@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import Image from 'next/image';
 import {
   Play, Pause, Music, ListMusic, Plus, Trash2, Loader2, SkipForward, Heart,
 } from 'lucide-react';
@@ -342,6 +343,10 @@ export default function PlayerPage() {
             >
               {type === 'soins'
                 ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#4A6FA5]'}`} />
+                : type === 'matin'
+                ? <Image src="/Matin.png" width={32} height={32} alt="Matin" className={isActive ? 'brightness-[10]' : ''} />
+                : type === 'repas'
+                ? <Image src="/Repas.png" width={32} height={32} alt="Repas" className={isActive ? 'brightness-[10]' : ''} />
                 : <span className="text-3xl leading-none">{t(PHASE_EMOJI_KEYS[type])}</span>
               }
               <span className="text-[15px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
@@ -622,7 +627,7 @@ export default function PlayerPage() {
     {/* Stimulation 40Hz */}
     <div className="flex items-center justify-between">
       <div>
-        <p className="font-semibold text-base">{t('gamma_title')}</p>
+        <p className="text-lg font-bold">{t('gamma_title')}</p>
         <p className="text-sm text-muted-foreground">{t('gamma_40hz_desc_short')}</p>
       </div>
       <Switch
@@ -684,7 +689,7 @@ export default function PlayerPage() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-semibold text-base">{t('gamma_binaural_relax')}</p>
+            <p className="text-lg font-bold">{t('gamma_binaural_relax')}</p>
             <p className="text-sm text-muted-foreground">{t('gamma_binaural_relax_desc')}</p>
           </div>
           <Switch
