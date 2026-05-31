@@ -343,15 +343,11 @@ export default function PlayerPage() {
               {type === 'soins'
                 ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#4A6FA5]'}`} />
                 : type === 'matin'
-                ? <div style={{ background: isActive ? 'rgba(255,255,255,0.25)' : 'transparent', borderRadius: '8px', padding: '2px', display:'flex' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/Matin.png" width={44} height={44} alt="Matin" style={{ objectFit: 'contain' }} />
-                  </div>
+                /* eslint-disable-next-line @next/next/no-img-element */
+                ? <img src="/Matin.png" width={48} height={48} alt="Matin" />
                 : type === 'repas'
-                ? <div style={{ background: isActive ? 'rgba(255,255,255,0.25)' : 'transparent', borderRadius: '8px', padding: '2px', display:'flex' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/Repas.png" width={44} height={44} alt="Repas" style={{ objectFit: 'contain' }} />
-                  </div>
+                /* eslint-disable-next-line @next/next/no-img-element */
+                ? <img src="/Repas.png" width={48} height={48} alt="Repas" />
                 : <span className="text-3xl leading-none">{t(PHASE_EMOJI_KEYS[type])}</span>
               }
               <span className="text-[15px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>

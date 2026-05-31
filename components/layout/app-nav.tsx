@@ -34,12 +34,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
     <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-white border-r border-border flex-col">
       <div className="p-6 border-b">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logoappli.png"
-          alt="NeuroWake Music"
-          className="h-32 w-auto"
-          style={{ mixBlendMode: 'multiply' }}
-        />
+        <img src="/logoappli.png" alt="NeuroWake Music" className="h-32 w-auto" />
         {profil?.prenom_proche && (
           <div className="text-sm text-muted-foreground mt-1">Profil de {profil.prenom_proche}</div>
         )}
