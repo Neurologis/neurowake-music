@@ -38,7 +38,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
           src="/logoappli.png"
           alt="NeuroWake Music"
           className="h-32 w-auto"
-          style={{ backgroundColor: 'white', padding: '4px', borderRadius: '8px' }}
+          style={{ mixBlendMode: 'multiply' }}
         />
         {profil?.prenom_proche && (
           <div className="text-sm text-muted-foreground mt-1">Profil de {profil.prenom_proche}</div>
