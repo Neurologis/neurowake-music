@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, apiError } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
+import { generateTitreDescription } from '@/lib/services/anthropic';
 import { z } from 'zod';
 
 /**
@@ -33,6 +34,40 @@ export async function POST(req: NextRequest) {
 
   const { titre, artiste, annee, pochette_url, itunes_url } = parsed.data;
   const admin = createAdminClient();
+
+  // Fetch profile for description context
+  const { data: profil } = await admin
+    .from('profils')
+    .select('pays_jeunesse, passions, bump_annee_debut, bump_annee_fin, langue')
+    .eq('user_id', userId)
+    .single();
+
+  const langue = (profil as { langue?: string } | null)?.langue ?? 'fr';
+
+  // Generate description + phase via AI (best-effort — never blocks insertion on failure)
+  let aiDescription: string | null = null;
+  let aiPhase: 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher' | null = null;
+  try {
+    const ai = await generateTitreDescription(
+      titre,
+      artiste,
+      annee ?? null,
+      {
+        pays_jeunesse:    profil?.pays_jeunesse,
+        passions:         profil?.passions,
+        bump_annee_debut: profil?.bump_annee_debut,
+        bump_annee_fin:   profil?.bump_annee_fin,
+      },
+      langue
+    );
+    aiDescription = ai.description || null;
+    const VALID_PHASES = ['matin', 'soins', 'repas', 'apres-midi', 'coucher'] as const;
+    aiPhase = VALID_PHASES.includes(ai.phase_recommandee as typeof VALID_PHASES[number])
+      ? (ai.phase_recommandee as typeof aiPhase)
+      : null;
+  } catch (aiErr) {
+    console.warn('[decouverte/ajouter] generateTitreDescription failed (non-blocking):', aiErr);
+  }
 
   // Check for duplicates (same titre+artiste for this user)
   const { data: existing } = await admin
@@ -68,13 +103,15 @@ export async function POST(req: NextRequest) {
     annee: annee ?? null,
     pochette_url: pochette_url ?? null,
     musicbrainz_id: null as string | null,
-    phase_recommandee: null as 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher' | null,
+    phase_recommandee: aiPhase,
+    description: aiDescription,
     statut: 'valide' as const,
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: inserted, error: insertErr } = await admin
     .from('titres_recommandes')
-    .insert(insert)
+    .insert(insert as any)
     .select()
     .single();
 

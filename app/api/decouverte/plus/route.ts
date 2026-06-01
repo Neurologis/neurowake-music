@@ -58,14 +58,16 @@ export async function POST(req: NextRequest) {
     pochette_url: null as string | null,
     musicbrainz_id: null as string | null,
     phase_recommandee: t.phase_recommandee,
+    description: t.description ?? null,
     statut: 'propose' as const,
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let inserted: any[] | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: d1, error: insertError } = await admin
     .from('titres_recommandes')
-    .insert(inserts)
+    .insert(inserts as any)
     .select();
 
   if (insertError) {
@@ -76,7 +78,8 @@ export async function POST(req: NextRequest) {
       const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
       const { data: d2, error: e2 } = await admin
         .from('titres_recommandes')
-        .insert(insertsWithoutPhase)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert(insertsWithoutPhase as any)
         .select();
       if (e2) {
         console.error('[decouverte/plus] retry insert error:', e2.code, e2.message);

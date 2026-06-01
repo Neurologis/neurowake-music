@@ -148,6 +148,7 @@ export interface TitreDecouvert {
   artiste: string;
   annee: number;
   phase_recommandee: PhaseRecommandee;
+  description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -222,42 +223,46 @@ export async function generateMusicDiscovery(params: {
       ? `\nPays de résidence actuel : ${pays_residence} — inclure aussi des hits populaires locaux du pays de résidence (en plus des titres en langue d'origine).`
       : '';
 
-  const prompt = `Tu es expert en histoire musicale et catalogues de hits internationaux.
+  const prompt = `Tu es expert en histoire musicale mondiale, spécialisé dans la musicothérapie de réminiscence.
 
 Génère exactement ${limit} titres musicaux RÉELS, POPULAIRES et VÉRIFIABLES pour ce profil :
 
-Période musicale formatrice (années du bump) : ${bump_annee_debut}–${bump_annee_fin}
+Période musicale formatrice (bump de réminiscence) : ${bump_annee_debut}–${bump_annee_fin}
 Pays d'origine / culture musicale : ${pays_jeunesse}${residenceNote}
 Genres préférés : ${genresStr}
 Passions & activités : ${passionsStr}${madeleineNote}${excludeNote}
 
-ORDRE DE PRIORITÉ STRICT (respecte-le absolument) :
-1. D'abord les titres et artistes explicitement mentionnés dans l'historique de conversation
-2. Ensuite les grands hits de la période ${bump_annee_debut}–${bump_annee_fin} dans la culture de ${pays_jeunesse}
-3. Puis le top hits de l'époque dans le pays / la langue du profil (titres locaux, pas uniquement les versions internationales)
-4. Puis les titres qui correspondent aux émotions et passions déclarées : ${passionsStr}
-5. Titres classés par phase de journée selon BPM et style musical
+ORDRE DE PRIORITÉ STRICT :
+1. Titres et artistes explicitement mentionnés dans l'historique de conversation
+2. Grands hits de la période ${bump_annee_debut}–${bump_annee_fin} dans la culture de ${pays_jeunesse}
+3. Artistes locaux chantant dans la langue de ${pays_jeunesse} — priorité absolue sur les versions internationales
+4. Titres liés aux émotions et passions déclarées : ${passionsStr}
+5. Répartition équilibrée par phase de journée
 
 RÈGLES ABSOLUES :
-1. Uniquement des titres ayant réellement existé et été populaires (hits, pas des B-sides obscures)
-2. Correspondance culturelle stricte avec ${pays_jeunesse} (artistes locaux prioritaires, dans la langue du pays)
+1. Uniquement des titres ayant réellement existé et été populaires
+2. Correspondance culturelle stricte avec ${pays_jeunesse}
 3. Maximum 2 titres par artiste sur l'ensemble de la liste
-4. Répartition équilibrée : ~${Math.round(limit / 5)} titres par phase
+4. Répartition : ~${Math.round(limit / 5)} titres par phase
+5. Pour chaque titre, génère une description de 1-2 phrases qui explique :
+   - Pourquoi ce titre est pertinent pour la réminiscence
+   - L'émotion ou le souvenir probable qu'il peut déclencher
+   - Dans quelle phase de journée il est le plus efficace et pourquoi (selon son BPM et son style)
 
-PHASES DE JOURNÉE (énergie + BPM du titre) :
-• "matin"      = énergique, dynamique, optimiste  — BPM > 100, rythme rapide, style rythmé
-• "soins"      = doux, calme, apaisant            — BPM 60–80, rythme lent, style calme
-• "repas"      = gai, festif, convivial, enjoué   — BPM 80–100, ambiance légère et conviviale
-• "apres-midi" = nostalgique, sentimental, mélodieux — BPM 70–90, mélancolique
-• "coucher"    = lent, introspectif, relaxant     — BPM < 70, berceuse ou ballade lente
+PHASES DE JOURNÉE :
+• "matin"       = énergique, dynamique, optimiste        — BPM > 100
+• "soins"       = doux, calme, apaisant                  — BPM 60–80
+• "repas"       = gai, festif, convivial                 — BPM 80–100
+• "apres-midi"  = nostalgique, sentimental, mélodieux    — BPM 70–90
+• "coucher"     = lent, introspectif, relaxant           — BPM < 70
 
 Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
-[{"titre":"...","artiste":"...","annee":1978,"phase_recommandee":"matin"},...]`;
+[{"titre":"...","artiste":"...","annee":1978,"phase_recommandee":"matin","description":"Ce titre énergique de ... évoque ... et sera particulièrement efficace le matin pour ..."},...]`;
 
   console.log('[generateMusicDiscovery] Calling Claude claude-sonnet-4-6, limit:', limit);
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
+    max_tokens: 8000,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -275,6 +280,7 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
       artiste?: unknown;
       annee?: unknown;
       phase_recommandee?: unknown;
+      description?: unknown;
     }>;
 
     const VALID_PHASES: PhaseRecommandee[] = ['matin', 'soins', 'repas', 'apres-midi', 'coucher'];
@@ -288,6 +294,7 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
         phase_recommandee: VALID_PHASES.includes(t.phase_recommandee as PhaseRecommandee)
           ? (t.phase_recommandee as PhaseRecommandee)
           : 'apres-midi',
+        description: t.description ? String(t.description) : undefined,
       }))
       .slice(0, limit);
 
@@ -297,6 +304,46 @@ Retourne UNIQUEMENT ce tableau JSON valide, sans texte avant ni après :
     console.error('[generateMusicDiscovery] JSON.parse failed:', parseErr);
     console.error('[generateMusicDiscovery] Raw text was:', text.slice(0, 500));
     return [];
+  }
+}
+
+export async function generateTitreDescription(
+  titre: string,
+  artiste: string,
+  annee: number | null,
+  profil: { pays_jeunesse?: string; passions?: string[]; bump_annee_debut?: number; bump_annee_fin?: number },
+  langue: string
+): Promise<{ description: string; phase_recommandee: string }> {
+  const prompt = `Tu es expert en musicothérapie de réminiscence.
+
+Pour le titre musical suivant, génère une description courte et une recommandation de phase :
+Titre : "${titre}"
+Artiste : "${artiste}"
+Année : ${annee ?? 'inconnue'}
+Contexte de l'auditeur : pays d'origine ${profil.pays_jeunesse ?? 'France'}, passions : ${profil.passions?.join(', ') ?? 'musique'}, période musicale formatrice : ${profil.bump_annee_debut ?? ''}–${profil.bump_annee_fin ?? ''}
+
+Retourne UNIQUEMENT ce JSON :
+{
+  "description": "1-2 phrases expliquant pourquoi ce titre est pertinent pour la réminiscence, l'émotion qu'il évoque, et dans quelle phase de journée il sera le plus efficace selon son BPM et son style musical",
+  "phase_recommandee": "matin|soins|repas|apres-midi|coucher"
+}
+
+Langue de la description : ${langue}
+N'utilise aucun vocabulaire médical.`;
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 300,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return { description: '', phase_recommandee: 'apres-midi' };
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return { description: '', phase_recommandee: 'apres-midi' };
   }
 }
 

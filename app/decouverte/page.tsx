@@ -22,8 +22,19 @@ interface Titre {
   statut: 'propose' | 'valide' | 'refuse' | 'incertain' | 'importe';
   musicbrainz_id?: string | null;
   phase_recommandee?: PhaseRecommandee | null;
+  description?: string | null;
   itunes_url?: string;
   amazon_url?: string;
+}
+
+interface TitrePreview {
+  titre: string;
+  artiste: string;
+  annee: number | null;
+  pochette_url?: string | null;
+  itunes_url?: string;
+  description?: string;
+  phase_recommandee?: PhaseRecommandee;
 }
 
 const PAGE_SIZE = 10;
@@ -60,6 +71,10 @@ export default function DecouvertePage() {
 
   // Upload
   const [uploading, setUploading] = useState<string | null>(null);
+
+  // Preview carte avant confirmation d'ajout depuis recherche
+  const [titrePreview, setTitrePreview]     = useState<TitrePreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     loadTitres();
@@ -116,41 +131,63 @@ export default function DecouvertePage() {
   }
 
   /**
-   * Add a title found via iTunes search directly to the user's validated list.
-   * Persists to titres_recommandes with statut='valide' via /api/decouverte/ajouter.
+   * Step 1 — Génère une preview IA (description + phase) pour un titre trouvé via iTunes.
+   * Affiche la carte de prévisualisation sans encore persister en base.
    */
-  async function ajouterDepuisRecherche(t: Titre) {
-    // Optimistic update — use a temp id until the DB returns the real one
-    const tempId = `search-${t.id}-${Date.now()}`;
-    const optimistic: Titre = { ...t, id: tempId, statut: 'valide' };
+  async function lancerPreview(t: Titre) {
+    if (allTitres.some((x) => x.titre === t.titre && x.artiste === t.artiste)) return;
+    // Afficher la preview de base immédiatement, puis enrichir avec l'IA
+    setTitrePreview({ titre: t.titre, artiste: t.artiste, annee: t.annee, pochette_url: t.pochette_url, itunes_url: t.itunes_url });
+    setLoadingPreview(true);
+    try {
+      const res = await fetch('/api/decouverte/describe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titre: t.titre, artiste: t.artiste, annee: t.annee }),
+      });
+      if (res.ok) {
+        const { description, phase_recommandee } = await res.json();
+        setTitrePreview((prev) => prev ? { ...prev, description, phase_recommandee } : prev);
+      }
+    } catch {
+      // Preview sans description — l'ajout reste possible
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  /**
+   * Step 2 — L'aidant confirme depuis la preview : persiste en base.
+   */
+  async function confirmerAjout() {
+    if (!titrePreview) return;
+    const t = titrePreview;
+    setTitrePreview(null);
+
+    const tempId = `search-${Date.now()}`;
+    const optimistic: Titre = {
+      id: tempId, titre: t.titre, artiste: t.artiste, annee: t.annee,
+      pochette_url: t.pochette_url ?? null, statut: 'valide',
+      phase_recommandee: t.phase_recommandee ?? null,
+      description: t.description ?? null,
+      itunes_url: t.itunes_url,
+    };
     setAllTitres((prev) => [...prev, optimistic]);
 
     try {
       const res = await fetch('/api/decouverte/ajouter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          titre: t.titre,
-          artiste: t.artiste,
-          annee: t.annee,
-          pochette_url: t.pochette_url,
-          itunes_url: t.itunes_url,
-        }),
+        body: JSON.stringify({ titre: t.titre, artiste: t.artiste, annee: t.annee, pochette_url: t.pochette_url, itunes_url: t.itunes_url }),
       });
-
       if (res.ok) {
         const { titre: saved } = await res.json();
-        // Replace temp entry with real DB row (preserves purchase links in UI)
-        setAllTitres((prev) =>
-          prev.map((x) =>
-            x.id === tempId
-              ? { ...saved, statut: 'valide', itunes_url: t.itunes_url, pochette_url: t.pochette_url }
-              : x
-          )
-        );
+        setAllTitres((prev) => prev.map((x) => x.id === tempId
+          ? { ...saved, statut: 'valide', itunes_url: t.itunes_url, pochette_url: t.pochette_url }
+          : x
+        ));
         toast({ title: 'Titre ajouté ✅', description: `${t.titre} — ${t.artiste}` });
       } else {
-        // Server error — keep optimistic entry but mark it clearly
         toast({ title: 'Erreur serveur', description: "Le titre n'a pas pu être sauvegardé.", variant: 'destructive' });
         setAllTitres((prev) => prev.filter((x) => x.id !== tempId));
       }
@@ -306,6 +343,11 @@ export default function DecouvertePage() {
                   <div className="text-sm text-muted-foreground">
                     {titre.artiste}{titre.annee ? ` (${titre.annee})` : ''}
                   </div>
+                  {titre.description && (
+                    <p className="text-sm text-muted-foreground italic mt-1 leading-snug">
+                      {titre.description}
+                    </p>
+                  )}
                 </div>
                 {phase && (
                   <Badge variant="outline" className={`text-xs shrink-0 ${phase.className}`}>
@@ -471,48 +513,75 @@ export default function DecouvertePage() {
               <p className="text-muted-foreground text-sm py-4">Aucun résultat pour &laquo;&nbsp;{searchQuery}&nbsp;&raquo;</p>
             ) : (
               <div className="space-y-2">
-                {searchResults.map((t) => (
-                  <Card key={t.id ?? t.titre} className="hover:shadow-sm transition-shadow">
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-3">
-                        {/* Pochette iTunes */}
-                        {t.pochette_url ? (
-                          <Image
-                            src={t.pochette_url}
-                            alt={t.titre}
-                            width={48}
-                            height={48}
-                            className="rounded-md object-cover flex-shrink-0"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-[#EDEAE3] rounded-md flex items-center justify-center flex-shrink-0 text-xl">
-                            🎵
+                {searchResults.map((t) => {
+                  const dejaAjoute = allTitres.some((x) => x.titre === t.titre && x.artiste === t.artiste);
+                  const isPreviewLoading = loadingPreview && titrePreview?.titre === t.titre && titrePreview?.artiste === t.artiste;
+                  return (
+                    <Card key={t.id ?? t.titre} className="hover:shadow-sm transition-shadow">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-3">
+                          {t.pochette_url ? (
+                            <Image src={t.pochette_url} alt={t.titre} width={48} height={48} className="rounded-md object-cover flex-shrink-0" unoptimized />
+                          ) : (
+                            <div className="w-12 h-12 bg-[#EDEAE3] rounded-md flex items-center justify-center flex-shrink-0 text-xl">🎵</div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate">{t.titre}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {t.artiste}{t.annee ? ` · ${t.annee}` : ''}
+                            </div>
                           </div>
-                        )}
-                        {/* Infos */}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm truncate">{t.titre}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {t.artiste}{t.annee ? ` · ${t.annee}` : ''}
-                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white shrink-0"
+                            onClick={() => lancerPreview(t)}
+                            disabled={dejaAjoute || isPreviewLoading}
+                          >
+                            {dejaAjoute
+                              ? '✓ Ajouté'
+                              : isPreviewLoading
+                              ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyse…</>
+                              : '+ Ajouter'}
+                          </Button>
                         </div>
-                        {/* Ajouter */}
-                        <Button
-                          size="sm"
-                          className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white shrink-0"
-                          onClick={() => ajouterDepuisRecherche(t)}
-                          disabled={allTitres.some((x) => x.id === t.id || (x.titre === t.titre && x.artiste === t.artiste))}
-                        >
-                          {allTitres.some((x) => x.id === t.id || (x.titre === t.titre && x.artiste === t.artiste))
-                            ? '✓ Ajouté'
-                            : '+ Ajouter'
-                          }
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Carte de prévisualisation IA */}
+            {titrePreview && (
+              <div className="mt-4 bg-[#4A6FA5]/5 border border-[#4A6FA5]/20 rounded-xl p-4 space-y-2">
+                <p className="font-semibold text-base">{titrePreview.titre} — {titrePreview.artiste}</p>
+                {loadingPreview ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyse musicothérapeutique en cours…
+                  </div>
+                ) : (
+                  <>
+                    {titrePreview.description && (
+                      <p className="text-sm text-muted-foreground italic leading-snug">
+                        {titrePreview.description}
+                      </p>
+                    )}
+                    {titrePreview.phase_recommandee && PHASE_CONFIG[titrePreview.phase_recommandee] && (
+                      <span className={`inline-block text-xs px-2 py-1 rounded-full border font-medium ${PHASE_CONFIG[titrePreview.phase_recommandee].className}`}>
+                        {PHASE_CONFIG[titrePreview.phase_recommandee].label}
+                      </span>
+                    )}
+                  </>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button onClick={confirmerAjout} className="flex-1 bg-[#4A6FA5] text-white" disabled={loadingPreview}>
+                    ✅ Ajouter ce titre à ma liste
+                  </Button>
+                  <Button variant="outline" onClick={() => setTitrePreview(null)} className="shrink-0">
+                    Annuler
+                  </Button>
+                </div>
               </div>
             )}
           </div>

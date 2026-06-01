@@ -28,12 +28,14 @@ async function safeInsertTitres(
     pochette_url: string | null;
     musicbrainz_id: string | null;
     phase_recommandee: 'matin' | 'soins' | 'repas' | 'apres-midi' | 'coucher';
+    description?: string | null;
     statut: 'propose';
   }>
 ) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await admin
     .from('titres_recommandes')
-    .insert(inserts)
+    .insert(inserts as any)
     .select();
 
   if (error) {
@@ -43,9 +45,10 @@ async function safeInsertTitres(
       // phase_recommandee column doesn't exist yet — retry without it
       console.warn('[decouverte/titres] Column phase_recommandee missing, retrying without it. Run the SQL migration to enable phase badges.');
       const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: d2, error: e2 } = await admin
         .from('titres_recommandes')
-        .insert(insertsWithoutPhase)
+        .insert(insertsWithoutPhase as any)
         .select();
       if (e2) console.error('[decouverte/titres] Retry insert error:', e2.code, e2.message);
       return d2 ?? null;
@@ -157,6 +160,7 @@ export async function GET(req: NextRequest) {
           pochette_url: null as string | null,
           musicbrainz_id: null as string | null,
           phase_recommandee: t.phase_recommandee,
+          description: t.description ?? null,
           statut: 'propose' as const,
         }));
 
@@ -177,6 +181,7 @@ export async function GET(req: NextRequest) {
             pochette_url: null,
             musicbrainz_id: null,
             phase_recommandee: t.phase_recommandee,
+            description: t.description ?? null,
             statut: 'propose' as const,
             created_at: new Date().toISOString(),
           }));
