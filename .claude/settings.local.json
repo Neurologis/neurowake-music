@@ -15,7 +15,29 @@
       "Bash(git push *)",
       "Bash(dir \"C:\\\\Users\\\\jeanc\\\\Desktop\\\\Dossiers\\\\BLOG BL ALZHEIMER\\\\Projet Musiques Autobiograpiques IA\\\\Code Neuro Wake Music\\\\public\\\\\" 2>&1)",
       "Bash(git mv *)",
-      "Bash(git commit -m 'Fix: logo détouré + drapeaux FR/ES/GB + icônes Matin/Repas *)"
+      "Bash(git commit -m 'Fix: logo détouré + drapeaux FR/ES/GB + icônes Matin/Repas *)",
+      "Bash(node -e \"require\\('sharp'\\); console.log\\('sharp OK'\\)\")",
+      "Bash(pnpm add *)",
+      "Bash(node -e ' *)",
+      "Bash(node scripts/optimize-logo.mjs)",
+      "Bash(node scripts/optimize-logo.cjs)",
+      "Bash(pnpm remove *)",
+      "Bash(git commit -m 'Fix: logo optimisé + vrais drapeaux FR/ES/GB + icônes Matin/Repas agrandies *)",
+      "Bash(git commit -m 'Fix: drapeaux SVG flagcdn + logo sidebar fond blanc taille doublée + icône Repas actif *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node -e \"const s=require\\('sharp'\\); console.log\\('sharp OK', s.versions.sharp\\)\")",
+      "Bash(pnpm install *)",
+      "Bash(node -e \"const s=require\\('./node_modules/.pnpm/sharp@0.34.5/node_modules/sharp'\\); console.log\\('sharp OK', s.versions.sharp\\)\")",
+      "Bash(node scripts/remove-bg.cjs)",
+      "Bash(git commit -m 'Fix: détourage fond blanc PNG via Sharp + optimisation logo *)",
+      "Bash(git commit -m 'Feature: description réminiscence + phase par BPM + recherche manuelle avec preview IA *)",
+      "Bash(findstr /i \"ANTHROPIC\")",
+      "Bash(powershell -Command \"if \\(Test-Path .env.local\\) { Select-String 'ANTHROPIC' .env.local } else { Write-Output 'Pas de .env.local' }\")",
+      "Bash(node scripts/test-descriptions.cjs)",
+      "Bash(powershell -Command \"Get-ChildItem node_modules/.pnpm -Filter '@anthropic*' -Directory | Select-Object -First 3 Name\")",
+      "Bash(git commit -m 'Fix: descriptions réminiscence — fallback progressif 42703 + correction affichage et sauvegarde *)",
+      "Bash(node scripts/test-gen-descriptions.cjs)",
+      "Bash(git commit -m 'Fix: affichage descriptions réminiscence — diagnostic et correction complète *)"
     ]
   }
 }
