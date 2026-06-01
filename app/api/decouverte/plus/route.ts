@@ -62,35 +62,37 @@ export async function POST(req: NextRequest) {
     statut: 'propose' as const,
   }));
 
+  // Attempt 1 — full insert (description + phase_recommandee)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let inserted: any[] | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: d1, error: insertError } = await admin
-    .from('titres_recommandes')
-    .insert(inserts as any)
-    .select();
+  let { data: inserted, error: insertError } = await admin.from('titres_recommandes').insert(inserts as any).select();
 
   if (insertError) {
     console.error('[decouverte/plus] insert error:', insertError.code, insertError.message);
+
     if (insertError.code === '42703') {
-      // phase_recommandee column doesn't exist yet — retry without it
-      console.warn('[decouverte/plus] Column phase_recommandee missing, retrying without it. Run the SQL migration to enable phase badges.');
-      const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
-      const { data: d2, error: e2 } = await admin
-        .from('titres_recommandes')
+      // Attempt 2 — without description
+      console.warn('[decouverte/plus] 42703 — retrying without description');
+      const withoutDesc = inserts.map(({ description: _d, ...rest }) => rest);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: d2, error: e2 } = await admin.from('titres_recommandes').insert(withoutDesc as any).select();
+
+      if (e2 && e2.code === '42703') {
+        // Attempt 3 — without description AND phase_recommandee
+        console.warn('[decouverte/plus] 42703 again — retrying without description + phase_recommandee');
+        const withoutBoth = withoutDesc.map(({ phase_recommandee: _p, ...rest }: { phase_recommandee?: unknown; [k: string]: unknown }) => rest);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .insert(insertsWithoutPhase as any)
-        .select();
-      if (e2) {
-        console.error('[decouverte/plus] retry insert error:', e2.code, e2.message);
+        const { data: d3, error: e3 } = await admin.from('titres_recommandes').insert(withoutBoth as any).select();
+        if (e3) { console.error('[decouverte/plus] retry-3 error:', e3.code, e3.message); return apiError('Failed to save new titles', 'DB_ERROR', 500); }
+        inserted = d3;
+      } else if (e2) {
+        console.error('[decouverte/plus] retry-2 error:', e2.code, e2.message);
         return apiError('Failed to save new titles', 'DB_ERROR', 500);
+      } else {
+        inserted = d2;
       }
-      inserted = d2 ?? null;
     } else {
       return apiError('Failed to save new titles', 'DB_ERROR', 500);
     }
-  } else {
-    inserted = d1 ?? null;
   }
 
   return NextResponse.json({ titres: inserted ?? [] });

@@ -109,11 +109,17 @@ export async function POST(req: NextRequest) {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: inserted, error: insertErr } = await admin
-    .from('titres_recommandes')
-    .insert(insert as any)
-    .select()
-    .single();
+  let { data: inserted, error: insertErr } = await admin.from('titres_recommandes').insert(insert as any).select().single();
+
+  // 42703 = undefined_column — description or phase_recommandee column missing → retry without them
+  if (insertErr?.code === '42703') {
+    console.warn('[decouverte/ajouter] 42703 — retrying without description + phase_recommandee');
+    const { description: _d, phase_recommandee: _p, ...insertCore } = insert;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: d2, error: e2 } = await admin.from('titres_recommandes').insert(insertCore as any).select().single();
+    inserted  = d2;
+    insertErr = e2;
+  }
 
   if (insertErr) {
     console.error('[decouverte/ajouter] Insert error:', insertErr.code, insertErr.message);

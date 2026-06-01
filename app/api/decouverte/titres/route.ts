@@ -17,7 +17,12 @@ function withTimeout<T>(promise: Promise<T[]>, ms: number, label: string): Promi
   ]);
 }
 
-/** Insert titres_recommandes, retrying without phase_recommandee if the column doesn't exist yet. */
+/**
+ * Insert titres_recommandes with progressive fallback for missing columns.
+ * Attempt 1 : full insert (description + phase_recommandee)
+ * Attempt 2 : without description  (column may not exist yet — run migration)
+ * Attempt 3 : without description AND phase_recommandee
+ */
 async function safeInsertTitres(
   admin: ReturnType<typeof createAdminClient>,
   inserts: Array<{
@@ -33,42 +38,46 @@ async function safeInsertTitres(
   }>
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await admin
-    .from('titres_recommandes')
-    .insert(inserts as any)
-    .select();
+  const { data, error } = await admin.from('titres_recommandes').insert(inserts as any).select();
+  if (!error) return data ?? null;
 
-  if (error) {
-    console.error('[decouverte/titres] Insert error:', error.code, error.message);
+  console.error('[decouverte/titres] Insert error:', error.code, error.message);
 
-    if (error.code === '42703') {
-      // phase_recommandee column doesn't exist yet — retry without it
-      console.warn('[decouverte/titres] Column phase_recommandee missing, retrying without it. Run the SQL migration to enable phase badges.');
-      const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
+  // 42703 = undefined_column — strip unknown columns progressively
+  if (error.code === '42703') {
+    // Attempt 2 — without description
+    console.warn('[decouverte/titres] 42703 — retrying without description');
+    const withoutDesc = inserts.map(({ description: _d, ...rest }) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: d2, error: e2 } = await admin.from('titres_recommandes').insert(withoutDesc as any).select();
+    if (!e2) return d2 ?? null;
+
+    console.error('[decouverte/titres] Retry-2 error:', e2.code, e2.message);
+
+    if (e2.code === '42703') {
+      // Attempt 3 — without description AND phase_recommandee
+      console.warn('[decouverte/titres] 42703 — retrying without description + phase_recommandee');
+      const withoutBoth = withoutDesc.map(({ phase_recommandee: _p, ...rest }: { phase_recommandee?: unknown; [k: string]: unknown }) => rest);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: d2, error: e2 } = await admin
-        .from('titres_recommandes')
-        .insert(insertsWithoutPhase as any)
-        .select();
-      if (e2) console.error('[decouverte/titres] Retry insert error:', e2.code, e2.message);
-      return d2 ?? null;
+      const { data: d3, error: e3 } = await admin.from('titres_recommandes').insert(withoutBoth as any).select();
+      if (e3) console.error('[decouverte/titres] Retry-3 error:', e3.code, e3.message);
+      return d3 ?? null;
     }
-
-    // For unique-constraint violations (user already has these titles), try to read existing rows
-    if (error.code === '23505') {
-      console.warn('[decouverte/titres] Unique constraint — rows already exist, reading them back...');
-      const { data: existing } = await admin
-        .from('titres_recommandes')
-        .select('*')
-        .eq('user_id', inserts[0]?.user_id)
-        .order('created_at', { ascending: true });
-      return existing ?? null;
-    }
-
     return null;
   }
 
-  return data ?? null;
+  // 23505 = unique constraint — rows already exist, read them back
+  if (error.code === '23505') {
+    console.warn('[decouverte/titres] Unique constraint — rows already exist, reading them back...');
+    const { data: existing } = await admin
+      .from('titres_recommandes')
+      .select('*')
+      .eq('user_id', inserts[0]?.user_id)
+      .order('created_at', { ascending: true });
+    return existing ?? null;
+  }
+
+  return null;
 }
 
 export async function GET(req: NextRequest) {
