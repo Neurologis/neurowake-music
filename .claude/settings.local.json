@@ -37,7 +37,8 @@
       "Bash(powershell -Command \"Get-ChildItem node_modules/.pnpm -Filter '@anthropic*' -Directory | Select-Object -First 3 Name\")",
       "Bash(git commit -m 'Fix: descriptions réminiscence — fallback progressif 42703 + correction affichage et sauvegarde *)",
       "Bash(node scripts/test-gen-descriptions.cjs)",
-      "Bash(git commit -m 'Fix: affichage descriptions réminiscence — diagnostic et correction complète *)"
+      "Bash(git commit -m 'Fix: affichage descriptions réminiscence — diagnostic et correction complète *)",
+      "Bash(git commit -m 'Fix: génération titres découverte — correction boucle vide après onboarding *)"
     ]
   }
 }
