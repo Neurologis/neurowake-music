@@ -172,21 +172,34 @@ export async function POST(req: NextRequest) {
       pochette_url: null as string | null,
       musicbrainz_id: null as string | null,
       phase_recommandee: t.phase_recommandee,
+      description: t.description ?? null,
       statut: 'propose' as const,
     }));
 
     if (inserts.length > 0) {
-      const { error: insertErr } = await admin.from('titres_recommandes').insert(inserts);
-      if (insertErr) {
-        console.error('[onboarding/complete] Insert error:', insertErr.code, insertErr.message);
-        if (insertErr.code === '42703') {
-          // phase_recommandee column doesn't exist yet — retry without it
-          console.warn('[onboarding/complete] Column phase_recommandee missing, retrying without it. Run the SQL migration to enable phase badges.');
-          const insertsWithoutPhase = inserts.map(({ phase_recommandee: _p, ...rest }) => rest);
-          const { error: e2 } = await admin.from('titres_recommandes').insert(insertsWithoutPhase);
-          if (e2) console.error('[onboarding/complete] Retry insert error:', e2.code, e2.message);
-          else titresRecommandes = inserts;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let { error: insertErr } = await admin.from('titres_recommandes').insert(inserts as any);
+
+      if (insertErr?.code === '42703') {
+        // Attempt 2 — description column missing: retry without it
+        console.warn('[onboarding/complete] 42703 — retrying without description');
+        const withoutDesc = inserts.map(({ description: _d, ...rest }) => rest);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: e2 } = await admin.from('titres_recommandes').insert(withoutDesc as any);
+        insertErr = e2 ?? null;
+
+        if (e2?.code === '42703') {
+          // Attempt 3 — phase_recommandee also missing
+          console.warn('[onboarding/complete] 42703 again — retrying without description + phase_recommandee');
+          const withoutBoth = withoutDesc.map(({ phase_recommandee: _p, ...rest }: { phase_recommandee?: unknown; [k: string]: unknown }) => rest);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: e3 } = await admin.from('titres_recommandes').insert(withoutBoth as any);
+          insertErr = e3 ?? null;
         }
+      }
+
+      if (insertErr) {
+        console.error('[onboarding/complete] Insert error after all retries:', insertErr.code, insertErr.message);
       } else {
         titresRecommandes = inserts;
       }
