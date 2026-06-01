@@ -268,6 +268,18 @@ const T = {
     msg_step1:            'Enregistrez votre voix une seule fois',
     msg_step2:            "Créez vos messages — l'IA les lit avec votre voix",
     msg_step3:            'Affectez chaque message à une playlist ou un titre spécifique',
+    // ── Playlists page ───────────────────────────────────────────────────────
+    pl_page_title:   'Mes playlists',
+    pl_how_title:    'Comment créer et gérer vos playlists ?',
+    pl_step1:        'Donnez un nom à votre playlist',
+    pl_step2:        'Allez dans "Mes titres" et ajoutez vos titres à cette playlist',
+    pl_step3:        'Revenez ici pour lancer votre playlist depuis le lecteur',
+    pl_create:       'Créer une playlist',
+    pl_no_tracks:    'Aucun titre dans cette playlist',
+    pl_tracks_count: 'titres',
+    pl_view_tracks:  'Voir les titres',
+    pl_reorder_hint: 'Glissez pour réordonner',
+    mobile_playlists: 'Playlists',
   },
 
   es: {
@@ -534,6 +546,18 @@ const T = {
     msg_step1:            'Grabe su voz una sola vez',
     msg_step2:            'Cree sus mensajes — la IA los lee con su voz',
     msg_step3:            'Asigne cada mensaje a una lista o canción específica',
+    // ── Playlists page ───────────────────────────────────────────────────────
+    pl_page_title:   'Mis listas',
+    pl_how_title:    '¿Cómo crear y gestionar sus listas?',
+    pl_step1:        'Dé un nombre a su lista',
+    pl_step2:        'Vaya a "Mis canciones" y añada canciones a esta lista',
+    pl_step3:        'Vuelva aquí para reproducir su lista',
+    pl_create:       'Crear una lista',
+    pl_no_tracks:    'Sin canciones en esta lista',
+    pl_tracks_count: 'canciones',
+    pl_view_tracks:  'Ver canciones',
+    pl_reorder_hint: 'Arrastre para reordenar',
+    mobile_playlists: 'Listas',
   },
 
   en: {
@@ -800,6 +824,18 @@ const T = {
     msg_step1:            'Record your voice once',
     msg_step2:            'Create your messages — AI reads them with your voice',
     msg_step3:            'Assign each message to a playlist or specific track',
+    // ── Playlists page ───────────────────────────────────────────────────────
+    pl_page_title:   'My playlists',
+    pl_how_title:    'How to create and manage your playlists?',
+    pl_step1:        'Give your playlist a name',
+    pl_step2:        'Go to "My tracks" and add tracks to this playlist',
+    pl_step3:        'Come back here to play your playlist',
+    pl_create:       'Create a playlist',
+    pl_no_tracks:    'No tracks in this playlist',
+    pl_tracks_count: 'tracks',
+    pl_view_tracks:  'View tracks',
+    pl_reorder_hint: 'Drag to reorder',
+    mobile_playlists: 'Playlists',
   },
 } as const;
 

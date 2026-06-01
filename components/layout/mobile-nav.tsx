@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Music, ListMusic, MessageSquare, Settings } from 'lucide-react';
+import { Music, ListMusic, LayoutList, MessageSquare, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-t';
 
@@ -10,10 +10,11 @@ export function MobileNav() {
   const { t } = useT();
 
   const navItems = [
-    { href: '/app',            label: t('mobile_player'),   icon: Music },
-    { href: '/app/titres',     label: t('mobile_tracks'),   icon: ListMusic },
-    { href: '/app/messages',   label: t('mobile_messages'), icon: MessageSquare },
-    { href: '/app/parametres', label: t('mobile_settings'), icon: Settings },
+    { href: '/app',            label: t('mobile_player'),    icon: Music },
+    { href: '/app/titres',     label: t('mobile_tracks'),    icon: ListMusic },
+    { href: '/app/playlists',  label: t('mobile_playlists'), icon: LayoutList },
+    { href: '/app/messages',   label: t('mobile_messages'),  icon: MessageSquare },
+    { href: '/app/parametres', label: t('mobile_settings'),  icon: Settings },
   ];
 
   return (

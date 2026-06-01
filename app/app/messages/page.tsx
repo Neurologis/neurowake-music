@@ -10,8 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import {
-  Mic, Square, Trash2, Download, Pin, X, CheckCircle2,
-  Lightbulb, Info,
+  Mic, Square, Trash2, Pin, X, CheckCircle2, Lightbulb, Info, Pencil, Check,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-t';
 
@@ -83,6 +82,11 @@ export default function MessagesPage() {
   const [newMsg, setNewMsg] = useState({ titre: '', texte: '', phase: 'matin' });
   const [generating, setGenerating] = useState(false);
 
+  // Edit inline
+  const [editingId,   setEditingId]   = useState<string | null>(null);
+  const [editForm,    setEditForm]    = useState({ titre: '', texte: '' });
+  const [savingEdit,  setSavingEdit]  = useState(false);
+
   // Modal d'affectation
   const [modalMsgId,        setModalMsgId]        = useState<string | null>(null);
   const [modalType,         setModalType]         = useState<'playlist_phase' | 'titre_specifique'>('playlist_phase');
@@ -119,7 +123,7 @@ export default function MessagesPage() {
       recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
       recorder.onstop = () => {
         setRecordedBlob(new Blob(chunksRef.current, { type: 'audio/webm' }));
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(tr => tr.stop());
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
@@ -174,7 +178,7 @@ export default function MessagesPage() {
     const res = await fetch('/api/messages/generer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newMsg),
+      body: JSON.stringify({ titre: newMsg.titre, texte: newMsg.texte, phase: newMsg.phase, mode_diffusion: 'ouverture' }),
     });
     if (res.ok) {
       setNewMsg({ titre: '', texte: '', phase: 'matin' });
@@ -187,21 +191,48 @@ export default function MessagesPage() {
     setGenerating(false);
   }
 
+  // ── Modifier un message ─────────────────────────────────────────────────────
+
+  function startEdit(msg: Message) {
+    setEditingId(msg.id);
+    setEditForm({ titre: msg.titre, texte: msg.texte_source });
+  }
+
+  function cancelEdit() { setEditingId(null); }
+
+  async function saveEdit(msg: Message) {
+    setSavingEdit(true);
+    const textChanged = editForm.texte !== msg.texte_source;
+    const res = await fetch(`/api/messages/${msg.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        titre:            editForm.titre,
+        texte_source:     editForm.texte,
+        regenerate_audio: textChanged,
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setMessages(prev => prev.map(m => m.id === msg.id
+        ? { ...m, titre: updated.titre, texte_source: updated.texte_source, audio_url: updated.audio_url ?? m.audio_url }
+        : m
+      ));
+      setEditingId(null);
+      toast({ title: '✅ Message mis à jour', description: textChanged ? 'Audio régénéré.' : '' });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: 'Erreur', description: err.error ?? t('error_generic'), variant: 'destructive' });
+    }
+    setSavingEdit(false);
+  }
+
   // ── Supprimer ───────────────────────────────────────────────────────────────
 
   async function supprimerMessage(id: string) {
     if (!confirm(t('delete_message_confirm'))) return;
     await fetch(`/api/messages/${id}`, { method: 'DELETE' });
     setMessages(m => m.filter(x => x.id !== id));
-  }
-
-  // ── Sauvegarder sur l'appareil ─────────────────────────────────────────────
-
-  function saveToDevice(audioUrl: string, titre: string) {
-    const a = document.createElement('a');
-    a.href = audioUrl;
-    a.download = `${titre.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-    a.click();
   }
 
   // ── Modal d'affectation ─────────────────────────────────────────────────────
@@ -218,17 +249,16 @@ export default function MessagesPage() {
   async function saveAffectation() {
     if (!modalMsgId) return;
     setSavingAffectation(true);
-    const body = {
-      message_id:       modalMsgId,
-      type_affectation: modalType,
-      position:         modalPosition,
-      phase:            modalType === 'playlist_phase' ? modalPhase : null,
-      titre_id:         modalType === 'titre_specifique' ? (modalTitreId || null) : null,
-    };
     const res = await fetch('/api/messages/affecter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        message_id:       modalMsgId,
+        type_affectation: modalType,
+        position:         modalPosition,
+        phase:            modalType === 'playlist_phase' ? modalPhase : null,
+        titre_id:         modalType === 'titre_specifique' ? (modalTitreId || null) : null,
+      }),
     });
     if (res.ok) {
       toast({ title: '✅ Affectation enregistrée' });
@@ -236,7 +266,7 @@ export default function MessagesPage() {
       await loadAll();
     } else {
       const err = await res.json().catch(() => ({}));
-      toast({ title: 'Erreur', description: err.error ?? t('error_generic'), variant: 'destructive' });
+      toast({ title: 'Erreur', description: err.detail ?? err.error ?? t('error_generic'), variant: 'destructive' });
     }
     setSavingAffectation(false);
   }
@@ -252,9 +282,7 @@ export default function MessagesPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  if (loading) {
-    return <div className="py-12 text-center text-muted-foreground">{t('loading')}</div>;
-  }
+  if (loading) return <div className="py-12 text-center text-muted-foreground">{t('loading')}</div>;
 
   return (
     <div className="space-y-6">
@@ -268,7 +296,7 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* ── Section 3 — Bandeau explicatif ────────────────────────────────── */}
+      {/* ── Bandeau explicatif ─────────────────────────────────────────────── */}
       <div className="bg-[#4A6FA5]/5 border border-[#4A6FA5]/20 rounded-xl p-4 space-y-2">
         <div className="flex items-center gap-2 font-semibold text-[#4A6FA5]">
           <Lightbulb className="h-4 w-4 flex-shrink-0" />
@@ -285,7 +313,7 @@ export default function MessagesPage() {
         </p>
       </div>
 
-      {/* ── Section 1 — Enregistrement de voix ────────────────────────────── */}
+      {/* ── Enregistrement de voix ─────────────────────────────────────────── */}
       {(!voixStatus.hasVoice || voixStatus.status !== 'ready') ? (
         <Card className="border-[#4A6FA5] bg-[#4A6FA5]/5">
           <CardHeader>
@@ -373,7 +401,7 @@ export default function MessagesPage() {
         </Card>
       )}
 
-      {/* ── Section 2 — Mes messages ─────────────────────────────────────── */}
+      {/* ── Mes messages ─────────────────────────────────────────────────── */}
       {messages.length === 0 ? (
         <p className="text-muted-foreground text-sm py-4 text-center">
           Aucun message créé. Enregistrez votre voix pour commencer.
@@ -384,7 +412,7 @@ export default function MessagesPage() {
             <Card key={msg.id}>
               <CardContent className="p-4 space-y-3">
 
-                {/* En-tête : badges + titre */}
+                {/* En-tête */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5 mb-1">
@@ -395,33 +423,80 @@ export default function MessagesPage() {
                         <Badge variant="secondary" className="text-xs">{t('auto_generated_badge')}</Badge>
                       )}
                     </div>
-                    <p className="font-semibold text-base">{msg.titre}</p>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">{msg.texte_source}</p>
+
+                    {/* Formulaire d'édition inline ou affichage normal */}
+                    {editingId === msg.id ? (
+                      <div className="space-y-2 mt-1">
+                        <Input
+                          value={editForm.titre}
+                          onChange={e => setEditForm(f => ({ ...f, titre: e.target.value }))}
+                          className="text-base h-9"
+                          placeholder={t('msg_title_label')}
+                        />
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">{t('msg_text_label')}</span>
+                            <span className="text-xs text-muted-foreground">{editForm.texte.length}/500</span>
+                          </div>
+                          <Textarea
+                            value={editForm.texte}
+                            onChange={e => setEditForm(f => ({ ...f, texte: e.target.value.slice(0, 500) }))}
+                            rows={3}
+                            className="text-sm"
+                          />
+                        </div>
+                        {editForm.texte !== msg.texte_source && (
+                          <p className="text-xs text-amber-600 flex items-center gap-1">
+                            <Info className="h-3 w-3" />
+                            Le texte a été modifié — l&apos;audio sera régénéré à la sauvegarde.
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm" className="bg-[#7BA05B] text-white text-sm"
+                            onClick={() => saveEdit(msg)}
+                            disabled={savingEdit || !editForm.titre.trim() || !editForm.texte.trim()}
+                          >
+                            {savingEdit ? t('saving_label') : <><Check className="h-3.5 w-3.5 mr-1" />Sauvegarder</>}
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-sm" onClick={cancelEdit}>
+                            {t('cancel')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-base">{msg.titre}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">{msg.texte_source}</p>
+                      </>
+                    )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive hover:text-destructive hover:bg-red-50 shrink-0 mt-0.5"
-                    onClick={() => supprimerMessage(msg.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                  {editingId !== msg.id && (
+                    <Button
+                      size="sm" variant="ghost"
+                      className="text-destructive hover:text-destructive hover:bg-red-50 shrink-0 mt-0.5"
+                      onClick={() => supprimerMessage(msg.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
 
-                {/* Player audio */}
-                {msg.audio_url && (
+                {/* Player audio (masqué en mode édition) */}
+                {msg.audio_url && editingId !== msg.id && (
                   <audio src={msg.audio_url} controls className="w-full h-8" />
                 )}
 
                 {/* Affectations actuelles */}
-                {msg.affectations && msg.affectations.length > 0 && (
+                {editingId !== msg.id && msg.affectations && msg.affectations.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Affectations</p>
                     <div className="flex flex-wrap gap-1.5">
                       {msg.affectations.map((aff) => {
                         const label = aff.type_affectation === 'playlist_phase'
                           ? `📋 Playlist ${phaseLabel(aff.phase ?? '')} — ${aff.position === 'debut' ? t('msg_position_debut') : t('msg_position_fin')}`
-                          : `🎵 ${titres.find(t => t.id === aff.titre_id)?.titre ?? 'Titre'} — ${aff.position === 'debut' ? t('msg_position_debut') : t('msg_position_fin')}`;
+                          : `🎵 ${titres.find(tr => tr.id === aff.titre_id)?.titre ?? 'Titre'} — ${aff.position === 'debut' ? t('msg_position_debut') : t('msg_position_fin')}`;
                         return (
                           <span
                             key={aff.id}
@@ -442,28 +517,25 @@ export default function MessagesPage() {
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-2 flex-wrap pt-1">
-                  {msg.audio_url && (
+                {/* Actions (masquées en mode édition) */}
+                {editingId !== msg.id && (
+                  <div className="flex gap-2 flex-wrap pt-1">
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-sm"
-                      onClick={() => saveToDevice(msg.audio_url!, msg.titre)}
+                      size="sm" variant="outline" className="text-sm"
+                      onClick={() => startEdit(msg)}
                     >
-                      <Download className="h-3.5 w-3.5 mr-1.5" />
-                      {t('msg_save_device')}
+                      <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                      Modifier
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    className="bg-[#4A6FA5] text-white text-sm"
-                    onClick={() => openModal(msg.id)}
-                  >
-                    <Pin className="h-3.5 w-3.5 mr-1.5" />
-                    {t('msg_affect_btn')}
-                  </Button>
-                </div>
+                    <Button
+                      size="sm" className="bg-[#4A6FA5] text-white text-sm"
+                      onClick={() => openModal(msg.id)}
+                    >
+                      <Pin className="h-3.5 w-3.5 mr-1.5" />
+                      {t('msg_affect_btn')}
+                    </Button>
+                  </div>
+                )}
 
               </CardContent>
             </Card>
@@ -485,35 +557,23 @@ export default function MessagesPage() {
               </button>
             </div>
 
-            {/* Type d'affectation */}
-            <div className="space-y-3">
-              {[
-                { value: 'playlist_phase' as const, label: t('msg_affect_playlist'), icon: '📋' },
-                { value: 'titre_specifique' as const, label: t('msg_affect_titre'), icon: '🎵' },
-              ].map(opt => (
-                <label
-                  key={opt.value}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${
-                    modalType === opt.value
-                      ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
-                      : 'border-[#EDEAE3] hover:border-[#4A6FA5]/30'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="modal_type"
-                    value={opt.value}
-                    checked={modalType === opt.value}
-                    onChange={() => setModalType(opt.value)}
-                    className="sr-only"
-                  />
-                  <span className="text-xl">{opt.icon}</span>
-                  <span className="font-medium text-base">{opt.label}</span>
-                </label>
-              ))}
-            </div>
+            {[
+              { value: 'playlist_phase' as const, label: t('msg_affect_playlist'), icon: '📋' },
+              { value: 'titre_specifique' as const, label: t('msg_affect_titre'), icon: '🎵' },
+            ].map(opt => (
+              <label
+                key={opt.value}
+                className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                  modalType === opt.value ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' : 'border-[#EDEAE3] hover:border-[#4A6FA5]/30'
+                }`}
+              >
+                <input type="radio" name="modal_type" value={opt.value} checked={modalType === opt.value}
+                  onChange={() => setModalType(opt.value)} className="sr-only" />
+                <span className="text-xl">{opt.icon}</span>
+                <span className="font-medium text-base">{opt.label}</span>
+              </label>
+            ))}
 
-            {/* Sélection phase ou titre */}
             {modalType === 'playlist_phase' ? (
               <div>
                 <Label className="text-sm font-medium mb-1.5 block">Playlist</Label>
@@ -530,15 +590,13 @@ export default function MessagesPage() {
               <div>
                 <Label className="text-sm font-medium mb-1.5 block">Titre musical</Label>
                 {titres.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucun titre associé — ajoutez d&apos;abord des titres dans &quot;Mes titres&quot;.</p>
+                  <p className="text-sm text-muted-foreground">Aucun titre — ajoutez d&apos;abord des titres dans &quot;Mes titres&quot;.</p>
                 ) : (
                   <Select value={modalTitreId} onValueChange={setModalTitreId}>
                     <SelectTrigger className="h-10 text-base"><SelectValue placeholder="Choisir un titre…" /></SelectTrigger>
                     <SelectContent>
-                      {titres.map(t => (
-                        <SelectItem key={t.id} value={t.id} className="text-base">
-                          {t.titre} — {t.artiste}
-                        </SelectItem>
+                      {titres.map(tr => (
+                        <SelectItem key={tr.id} value={tr.id} className="text-base">{tr.titre} — {tr.artiste}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -546,46 +604,30 @@ export default function MessagesPage() {
               </div>
             )}
 
-            {/* Position */}
             <div>
               <Label className="text-sm font-medium mb-1.5 block">Position</Label>
               <div className="flex gap-2">
-                {[
-                  { value: 'debut' as const, label: t('msg_position_debut') },
-                  { value: 'fin'   as const, label: t('msg_position_fin') },
-                ].map(pos => (
-                  <button
-                    key={pos.value}
-                    onClick={() => setModalPosition(pos.value)}
+                {[{ value: 'debut' as const, label: t('msg_position_debut') }, { value: 'fin' as const, label: t('msg_position_fin') }].map(pos => (
+                  <button key={pos.value} onClick={() => setModalPosition(pos.value)}
                     className={`flex-1 py-2 rounded-lg border-2 text-base font-medium transition-colors ${
-                      modalPosition === pos.value
-                        ? 'bg-[#4A6FA5] text-white border-[#4A6FA5]'
-                        : 'border-[#EDEAE3] text-[#2C2C2A] hover:border-[#4A6FA5]/40'
-                    }`}
-                  >
+                      modalPosition === pos.value ? 'bg-[#4A6FA5] text-white border-[#4A6FA5]' : 'border-[#EDEAE3] text-[#2C2C2A] hover:border-[#4A6FA5]/40'
+                    }`}>
                     {pos.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Actions modal */}
             <div className="flex gap-3 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setModalMsgId(null)}>
-                {t('cancel')}
-              </Button>
-              <Button
-                className="flex-1 bg-[#4A6FA5] text-white"
-                onClick={saveAffectation}
-                disabled={savingAffectation || (modalType === 'titre_specifique' && !modalTitreId)}
-              >
+              <Button variant="outline" className="flex-1" onClick={() => setModalMsgId(null)}>{t('cancel')}</Button>
+              <Button className="flex-1 bg-[#4A6FA5] text-white" onClick={saveAffectation}
+                disabled={savingAffectation || (modalType === 'titre_specifique' && !modalTitreId)}>
                 {savingAffectation ? t('saving_label') : '✅ Confirmer l\'affectation'}
               </Button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

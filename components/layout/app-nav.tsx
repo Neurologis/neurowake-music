@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Music, ListMusic, MessageSquare, Settings, LogOut, Shield } from 'lucide-react';
+import { Music, ListMusic, LayoutList, MessageSquare, Settings, LogOut, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useT } from '@/hooks/use-t';
@@ -19,6 +19,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
   const navItems = [
     { href: '/app',            label: t('nav_player'),   icon: Music },
     { href: '/app/titres',     label: t('nav_tracks'),   icon: ListMusic },
+    { href: '/app/playlists',  label: t('pl_page_title'), icon: LayoutList },
     { href: '/app/messages',   label: t('nav_messages'), icon: MessageSquare },
     { href: '/app/parametres', label: t('nav_settings'), icon: Settings },
   ];

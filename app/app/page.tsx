@@ -626,20 +626,33 @@ export default function PlayerPage() {
 
         {/* Message vocal */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-base">{t('voice_msg')}</p>
                 {phaseMessageDebut || phaseMessageFin ? (
-                  <div className="text-sm text-muted-foreground space-y-0.5 mt-0.5">
-                    {phaseMessageDebut && <p>▶ Début : {phaseMessageDebut.titre}</p>}
-                    {phaseMessageFin   && <p>◀ Fin : {phaseMessageFin.titre}</p>}
+                  <div className="text-sm text-muted-foreground space-y-0.5 mt-1">
+                    {phaseMessageDebut && (
+                      <p className="flex items-center gap-1">
+                        <span className="text-[#7BA05B]">▶</span>
+                        <span className="font-medium">{t('msg_position_debut')} :</span> {phaseMessageDebut.titre}
+                      </p>
+                    )}
+                    {phaseMessageFin && (
+                      <p className="flex items-center gap-1">
+                        <span className="text-[#4A6FA5]">◀</span>
+                        <span className="font-medium">{t('msg_position_fin')} :</span> {phaseMessageFin.titre}
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <Link href="/app/messages" className="text-sm text-[#4A6FA5] hover:underline">
-                    {t('create_msg')}
-                  </Link>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Aucun message affecté à cette phase.
+                  </p>
                 )}
+                <Link href="/app/messages" className="text-xs text-[#4A6FA5] hover:underline mt-1 inline-block">
+                  Gérer les affectations →
+                </Link>
               </div>
               {(phaseMessageDebut || phaseMessageFin) && (
                 <Switch checked={messageEnabled} onCheckedChange={setMessageEnabled} />
