@@ -106,10 +106,23 @@ export async function GET(req: NextRequest) {
   let finalTitres = titres ?? [];
   console.log(`[decouverte/titres] Found ${finalTitres.length} existing titles for user ${userId.slice(0, 8)}…`);
 
-  // ── 2. Auto-generate if empty ───────────────────────────────────────────────
-  // Handles: (a) users who completed onboarding before AI discovery was added,
-  //          (b) users whose onboarding insert failed (e.g., missing DB column).
-  if (finalTitres.length === 0) {
+  // ── 2. Auto-generate if empty OR if no descriptions exist yet ─────────────
+  // Handles: (a) new users with no titles
+  //          (b) existing users whose titles were inserted before the description
+  //              feature — they have description=null for all propose titles.
+  //              We wipe the propose-only rows and regenerate so they get descriptions.
+  const allPropose     = finalTitres.length > 0 && finalTitres.every((t) => (t as { statut: string }).statut === 'propose');
+  const noDescriptions = finalTitres.length > 0 && finalTitres.every((t) => !(t as { description?: string | null }).description);
+  const shouldRegenerate = finalTitres.length === 0 || (allPropose && noDescriptions);
+
+  if (shouldRegenerate && finalTitres.length > 0) {
+    // Wipe undescribed propose-only titles so we can regenerate with descriptions
+    console.log(`[decouverte/titres] ${finalTitres.length} titles have no descriptions — wiping propose rows and regenerating`);
+    await admin.from('titres_recommandes').delete().eq('user_id', userId).eq('statut', 'propose');
+    finalTitres = [];
+  }
+
+  if (shouldRegenerate) {
     console.log('[decouverte/titres] No titles — fetching profile to auto-generate...');
 
     const { data: profil, error: profErr } = await admin
