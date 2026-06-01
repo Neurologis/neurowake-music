@@ -257,6 +257,17 @@ const T = {
     landing_cta_desc:       '14 jours gratuits, sans engagement',
     landing_create_account: 'Créer mon compte',
     landing_disclaimer:     'NeuroWake Music n\'est pas un dispositif médical',
+    // ── Messages v2 ─────────────────────────────────────────────────────────
+    msg_affect_btn:       'Affecter ce message',
+    msg_save_device:      'Sauvegarder sur mon appareil',
+    msg_affect_playlist:  'À toute une playlist',
+    msg_affect_titre:     'À un titre spécifique',
+    msg_position_debut:   'Début',
+    msg_position_fin:     'Fin',
+    msg_how_it_works:     'Comment fonctionne la personnalisation vocale ?',
+    msg_step1:            'Enregistrez votre voix une seule fois',
+    msg_step2:            "Créez vos messages — l'IA les lit avec votre voix",
+    msg_step3:            'Affectez chaque message à une playlist ou un titre spécifique',
   },
 
   es: {
@@ -512,6 +523,17 @@ const T = {
     landing_cta_desc:       '14 días gratis, sin compromiso',
     landing_create_account: 'Crear mi cuenta',
     landing_disclaimer:     'NeuroWake Music no es un dispositivo médico',
+    // ── Messages v2 ─────────────────────────────────────────────────────────
+    msg_affect_btn:       'Asignar mensaje',
+    msg_save_device:      'Guardar en mi dispositivo',
+    msg_affect_playlist:  'A toda una lista',
+    msg_affect_titre:     'A una canción específica',
+    msg_position_debut:   'Inicio',
+    msg_position_fin:     'Final',
+    msg_how_it_works:     '¿Cómo funciona la personalización de voz?',
+    msg_step1:            'Grabe su voz una sola vez',
+    msg_step2:            'Cree sus mensajes — la IA los lee con su voz',
+    msg_step3:            'Asigne cada mensaje a una lista o canción específica',
   },
 
   en: {
@@ -767,6 +789,17 @@ const T = {
     landing_cta_desc:       '14 days free, no commitment',
     landing_create_account: 'Create my account',
     landing_disclaimer:     'NeuroWake Music is not a medical device',
+    // ── Messages v2 ─────────────────────────────────────────────────────────
+    msg_affect_btn:       'Assign message',
+    msg_save_device:      'Save to my device',
+    msg_affect_playlist:  'To entire playlist',
+    msg_affect_titre:     'To a specific track',
+    msg_position_debut:   'Start',
+    msg_position_fin:     'End',
+    msg_how_it_works:     'How does voice personalization work?',
+    msg_step1:            'Record your voice once',
+    msg_step2:            'Create your messages — AI reads them with your voice',
+    msg_step3:            'Assign each message to a playlist or specific track',
   },
 } as const;
 

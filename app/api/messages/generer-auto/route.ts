@@ -53,7 +53,27 @@ export async function POST(req: NextRequest) {
         ordre: i,
       }).select().single();
 
-      results.push(inserted);
+      if (inserted) {
+        results.push(inserted);
+
+        // Affecter automatiquement le message à sa phase en position "debut"
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin as any).from('messages_affectations').upsert({
+            user_id: userId,
+            message_id: inserted.id,
+            type_affectation: 'playlist_phase',
+            position: 'debut',
+            phase: tpl.phase,
+            titre_id: null,
+          }, {
+            onConflict: 'user_id,phase,type_affectation,position',
+          });
+        } catch (affErr) {
+          // Non-fatal — table may not exist yet if migration not run
+          console.warn('[generer-auto] Could not create affectation (migration needed?):', affErr);
+        }
+      }
     } catch (err) {
       console.error(`[generer-auto] Failed for phase ${tpl.phase}:`, err);
     }

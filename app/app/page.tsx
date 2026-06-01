@@ -124,8 +124,12 @@ export default function PlayerPage() {
   const [profil, setProfil]                     = useState<Profil | null>(null);
   const [activePlaylist, setActivePlaylist]      = useState<PlaylistType>('matin');
   const [conseil, setConseil]                   = useState<string | null>(null);
-  const [messageActif, setMessageActif]         = useState<{ titre: string; audio_url: string | null } | null>(null);
   const [messageEnabled, setMessageEnabled]     = useState(false);
+
+  // Messages v2 — affectations de la phase courante
+  const [phaseMessageDebut, setPhaseMessageDebut] = useState<{ titre: string; audio_url: string | null } | null>(null);
+  const [phaseMessageFin,   setPhaseMessageFin]   = useState<{ titre: string; audio_url: string | null } | null>(null);
+  const msgAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [userPlaylists, setUserPlaylists]               = useState<UserPlaylist[]>([]);
   const [launchingPlaylistId, setLaunchingPlaylistId]   = useState<string | null>(null);
@@ -179,28 +183,48 @@ export default function PlayerPage() {
     }
   }
 
+  /** Charge les messages affectés à la phase courante (positions debut/fin). */
   async function loadMessage() {
     const res = await fetch(`/api/messages?phase=${activePlaylist}`);
-    if (res.ok) {
-      const { messages } = await res.json();
-      const actif = messages?.find((m: { actif: boolean }) => m.actif);
-      setMessageActif(actif ?? null);
-    }
+    if (!res.ok) return;
+    const { messages } = await res.json();
+    if (!messages?.length) { setPhaseMessageDebut(null); setPhaseMessageFin(null); return; }
+
+    type MsgWithAff = { titre: string; audio_url: string | null; affectations?: Array<{ type_affectation: string; position: string; phase: string | null }> };
+    const findAffected = (pos: 'debut' | 'fin') =>
+      (messages as MsgWithAff[]).find(m =>
+        m.affectations?.some(a => a.type_affectation === 'playlist_phase' && a.position === pos && a.phase === activePlaylist)
+      ) ?? null;
+
+    setPhaseMessageDebut(findAffected('debut'));
+    setPhaseMessageFin(findAffected('fin'));
   }
 
   async function startSystemPlaylist(type: PlaylistType): Promise<boolean> {
     const tracks = await resolvePlaylist(`/api/playlist/${type}`);
 
     if (tracks.length === 0) {
-      toast({
-        title:       t('no_audio'),
-        description: t('no_audio_for_phase'),
-      });
+      toast({ title: t('no_audio'), description: t('no_audio_for_phase') });
       return false;
+    }
+
+    // Jouer le message de début (affecté à cette phase) avant la playlist
+    const debutMsg = messageEnabled ? phaseMessageDebut : null;
+    if (debutMsg?.audio_url) {
+      try {
+        const audio = new Audio(debutMsg.audio_url);
+        msgAudioRef.current = audio;
+        await new Promise<void>((resolve) => {
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve(); // ne pas bloquer si erreur
+          audio.play().catch(() => resolve());
+        });
+      } catch { /* non-bloquant */ }
     }
 
     await player.playTrackList(tracks, t(PHASE_FULL_KEYS[type]));
 
+    // Logguer la session
     fetch('/api/session/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -209,7 +233,7 @@ export default function PlayerPage() {
         duree_secondes: 0,
         gamma_actif:    player.gammaEnabled,
         gamma_mode:     player.gammaMode,
-        message_joue:   messageEnabled && !!messageActif,
+        message_joue:   messageEnabled && !!phaseMessageDebut,
       }),
     });
 
@@ -604,17 +628,20 @@ export default function PlayerPage() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-base">{t('voice_msg')}</p>
-                {messageActif ? (
-                  <p className="text-sm text-muted-foreground">{messageActif.titre}</p>
+                {phaseMessageDebut || phaseMessageFin ? (
+                  <div className="text-sm text-muted-foreground space-y-0.5 mt-0.5">
+                    {phaseMessageDebut && <p>▶ Début : {phaseMessageDebut.titre}</p>}
+                    {phaseMessageFin   && <p>◀ Fin : {phaseMessageFin.titre}</p>}
+                  </div>
                 ) : (
                   <Link href="/app/messages" className="text-sm text-[#4A6FA5] hover:underline">
                     {t('create_msg')}
                   </Link>
                 )}
               </div>
-              {messageActif && (
+              {(phaseMessageDebut || phaseMessageFin) && (
                 <Switch checked={messageEnabled} onCheckedChange={setMessageEnabled} />
               )}
             </div>

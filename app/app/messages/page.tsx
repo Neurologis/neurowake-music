@@ -4,24 +4,42 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Mic, Square, Play, Trash2, Check } from 'lucide-react';
+import {
+  Mic, Square, Trash2, Download, Pin, X, CheckCircle2,
+  Lightbulb, Info,
+} from 'lucide-react';
 import { useT } from '@/hooks/use-t';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Affectation {
+  id: string;
+  type_affectation: 'playlist_phase' | 'titre_specifique';
+  position: 'debut' | 'fin';
+  phase: string | null;
+  titre_id: string | null;
+}
 
 interface Message {
   id: string;
   titre: string;
   texte_source: string;
   phase: string;
-  mode_diffusion: string;
   actif: boolean;
   auto_genere: boolean;
   audio_url: string | null;
+  affectations: Affectation[];
+}
+
+interface TitreAudio {
+  id: string;
+  titre: string;
+  artiste: string;
 }
 
 interface VoixStatus {
@@ -29,74 +47,79 @@ interface VoixStatus {
   status: 'pending' | 'ready' | 'error' | null;
 }
 
+// ── Constantes ────────────────────────────────────────────────────────────────
+
 const PHASES = [
-  { value: 'matin', label: 'Matin', color: 'morning' as const },
-  { value: 'soins', label: 'Soins', color: 'care' as const },
-  { value: 'repas', label: 'Repas', color: 'meal' as const },
-  { value: 'apres-midi', label: 'Après-midi', color: 'afternoon' as const },
-  { value: 'coucher', label: 'Coucher', color: 'bedtime' as const },
-  { value: 'toutes', label: 'Toutes', color: 'all' as const },
+  { value: 'matin',      label: '🌅 Matin',      className: 'bg-amber-100 text-amber-800 border-amber-200' },
+  { value: 'soins',      label: '🕊️ Soins',      className: 'bg-sky-100 text-sky-800 border-sky-200' },
+  { value: 'repas',      label: '🍽️ Repas',      className: 'bg-green-100 text-green-800 border-green-200' },
+  { value: 'apres-midi', label: '🌤️ Après-midi', className: 'bg-purple-100 text-purple-800 border-purple-200' },
+  { value: 'coucher',    label: '🌙 Coucher',    className: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  { value: 'toutes',     label: '🎵 Toutes',     className: 'bg-gray-100 text-gray-700 border-gray-200' },
 ];
+
+const phaseLabel = (v: string) => PHASES.find(p => p.value === v)?.label ?? v;
+const phaseClass = (v: string) => PHASES.find(p => p.value === v)?.className ?? '';
+
+// ── Composant principal ───────────────────────────────────────────────────────
 
 export default function MessagesPage() {
   const { t } = useT();
-  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Data
+  const [messages, setMessages]     = useState<Message[]>([]);
+  const [titres, setTitres]         = useState<TitreAudio[]>([]);
   const [voixStatus, setVoixStatus] = useState<VoixStatus>({ hasVoice: false, status: null });
-  const [loading, setLoading] = useState(true);
-  const [recording, setRecording] = useState(false);
-  const [cloning, setCloning] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [loading, setLoading]       = useState(true);
+
+  // Recording
+  const [recording, setRecording]   = useState(false);
+  const [cloning, setCloning]       = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const chunksRef        = useRef<Blob[]>([]);
 
-  // Form state
-  const [newMsg, setNewMsg] = useState({
-    titre: '',
-    texte: '',
-    phase: 'matin',
-    mode_diffusion: 'ouverture',
-  });
+  // Create form
+  const [newMsg, setNewMsg] = useState({ titre: '', texte: '', phase: 'matin' });
+  const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  // Modal d'affectation
+  const [modalMsgId,        setModalMsgId]        = useState<string | null>(null);
+  const [modalType,         setModalType]         = useState<'playlist_phase' | 'titre_specifique'>('playlist_phase');
+  const [modalPosition,     setModalPosition]     = useState<'debut' | 'fin'>('debut');
+  const [modalPhase,        setModalPhase]        = useState('matin');
+  const [modalTitreId,      setModalTitreId]      = useState('');
+  const [savingAffectation, setSavingAffectation] = useState(false);
+
+  useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
-    const [msgRes, voixRes] = await Promise.all([
+    const [msgRes, voixRes, titresRes] = await Promise.all([
       fetch('/api/messages'),
       fetch('/api/voix/status'),
+      fetch('/api/titres'),
     ]);
-    if (msgRes.ok) {
-      const { messages: data } = await msgRes.json();
-      setMessages(data ?? []);
-    }
-    if (voixRes.ok) {
-      setVoixStatus(await voixRes.json());
-    }
+    if (msgRes.ok)    { const { messages: d } = await msgRes.json();  setMessages(d ?? []); }
+    if (voixRes.ok)   { setVoixStatus(await voixRes.json()); }
+    if (titresRes.ok) { const { titres: d } = await titresRes.json(); setTitres(d ?? []); }
     setLoading(false);
   }
 
+  // ── Enregistrement ─────────────────────────────────────────────────────────
+
   async function startRecording() {
     try {
-      // Vérifie que l'API est disponible (HTTPS requis en production)
       if (!navigator.mediaDevices?.getUserMedia) {
-        toast({
-          title: t('error_title'),
-          description: 'L\'enregistrement audio nécessite HTTPS et un navigateur compatible (Chrome, Firefox, Safari).',
-          variant: 'destructive',
-        });
+        toast({ title: t('error_title'), description: 'Enregistrement audio : HTTPS + navigateur compatible requis.', variant: 'destructive' });
         return;
       }
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
       recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        setRecordedBlob(blob);
-        stream.getTracks().forEach(track => track.stop());
+        setRecordedBlob(new Blob(chunksRef.current, { type: 'audio/webm' }));
+        stream.getTracks().forEach(t => t.stop());
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
@@ -104,39 +127,22 @@ export default function MessagesPage() {
     } catch (err) {
       const name = (err as { name?: string })?.name ?? '';
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        toast({
-          title: t('mic_denied'),
-          description: t('mic_denied_desc'),
-          variant: 'destructive',
-        });
-      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        toast({
-          title: t('mic_not_found'),
-          description: t('mic_not_found_desc'),
-          variant: 'destructive',
-        });
+        toast({ title: t('mic_denied'), description: t('mic_denied_desc'), variant: 'destructive' });
+      } else if (name === 'NotFoundError') {
+        toast({ title: t('mic_not_found'), description: t('mic_not_found_desc'), variant: 'destructive' });
       } else {
-        toast({
-          title: t('error_title'),
-          description: t('error_generic'),
-          variant: 'destructive',
-        });
+        toast({ title: t('error_title'), description: t('error_generic'), variant: 'destructive' });
       }
-      console.error('[messages] startRecording error:', err);
     }
   }
 
-  function stopRecording() {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
+  function stopRecording() { mediaRecorderRef.current?.stop(); setRecording(false); }
 
   async function submitVoice() {
     if (!recordedBlob) return;
     setCloning(true);
     const fd = new FormData();
     fd.append('audio', recordedBlob, 'voice.webm');
-
     const res = await fetch('/api/voix/clone', { method: 'POST', body: fd });
     if (res.ok) {
       setVoixStatus({ hasVoice: true, status: 'ready' });
@@ -146,18 +152,18 @@ export default function MessagesPage() {
       await loadAll();
     } else {
       const err = await res.json().catch(() => ({}));
-      if (err.code === 'ELEVENLABS_NOT_CONFIGURED') {
-        toast({
-          title: 'Fonctionnalité non disponible',
-          description: 'Le clonage de voix nécessite une clé API ElevenLabs. Contactez le support pour l\'activer sur votre compte.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({ title: 'Erreur de clonage', description: err.error ?? 'Le clonage a échoué', variant: 'destructive' });
-      }
+      toast({
+        title: err.code === 'ELEVENLABS_NOT_CONFIGURED' ? 'Fonctionnalité non disponible' : 'Erreur de clonage',
+        description: err.code === 'ELEVENLABS_NOT_CONFIGURED'
+          ? 'Le clonage de voix nécessite une clé API ElevenLabs.'
+          : (err.error ?? 'Le clonage a échoué'),
+        variant: 'destructive',
+      });
     }
     setCloning(false);
   }
+
+  // ── Créer un message ────────────────────────────────────────────────────────
 
   async function genererMessage() {
     if (!newMsg.titre || !newMsg.texte) {
@@ -171,20 +177,17 @@ export default function MessagesPage() {
       body: JSON.stringify(newMsg),
     });
     if (res.ok) {
-      setNewMsg({ titre: '', texte: '', phase: 'matin', mode_diffusion: 'ouverture' });
+      setNewMsg({ titre: '', texte: '', phase: 'matin' });
       await loadAll();
       toast({ title: t('message_created_toast'), description: t('message_created_desc') });
     } else {
-      const err = await res.json();
-      toast({ title: 'Erreur', description: err.error, variant: 'destructive' });
+      const err = await res.json().catch(() => ({}));
+      toast({ title: 'Erreur', description: err.error ?? t('error_generic'), variant: 'destructive' });
     }
     setGenerating(false);
   }
 
-  async function activerMessage(id: string) {
-    await fetch(`/api/messages/${id}/activer`, { method: 'POST' });
-    await loadAll();
-  }
+  // ── Supprimer ───────────────────────────────────────────────────────────────
 
   async function supprimerMessage(id: string) {
     if (!confirm(t('delete_message_confirm'))) return;
@@ -192,11 +195,71 @@ export default function MessagesPage() {
     setMessages(m => m.filter(x => x.id !== id));
   }
 
-  const phaseLabel = (p: string) => PHASES.find(x => x.value === p)?.label ?? p;
-  const phaseColor = (p: string) => PHASES.find(x => x.value === p)?.color ?? 'all';
+  // ── Sauvegarder sur l'appareil ─────────────────────────────────────────────
+
+  function saveToDevice(audioUrl: string, titre: string) {
+    const a = document.createElement('a');
+    a.href = audioUrl;
+    a.download = `${titre.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+    a.click();
+  }
+
+  // ── Modal d'affectation ─────────────────────────────────────────────────────
+
+  function openModal(msgId: string) {
+    const msg = messages.find(m => m.id === msgId);
+    setModalMsgId(msgId);
+    setModalType('playlist_phase');
+    setModalPosition('debut');
+    setModalPhase(msg?.phase && msg.phase !== 'toutes' ? msg.phase : 'matin');
+    setModalTitreId(titres[0]?.id ?? '');
+  }
+
+  async function saveAffectation() {
+    if (!modalMsgId) return;
+    setSavingAffectation(true);
+    const body = {
+      message_id:       modalMsgId,
+      type_affectation: modalType,
+      position:         modalPosition,
+      phase:            modalType === 'playlist_phase' ? modalPhase : null,
+      titre_id:         modalType === 'titre_specifique' ? (modalTitreId || null) : null,
+    };
+    const res = await fetch('/api/messages/affecter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      toast({ title: '✅ Affectation enregistrée' });
+      setModalMsgId(null);
+      await loadAll();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: 'Erreur', description: err.error ?? t('error_generic'), variant: 'destructive' });
+    }
+    setSavingAffectation(false);
+  }
+
+  async function deleteAffectation(affectationId: string) {
+    await fetch('/api/messages/affecter', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ affectation_id: affectationId }),
+    });
+    await loadAll();
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return <div className="py-12 text-center text-muted-foreground">{t('loading')}</div>;
+  }
 
   return (
     <div className="space-y-6">
+
+      {/* En-tête + compteur */}
       <div>
         <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('messages_title')}</h1>
         <div className="flex items-center gap-3 mt-2">
@@ -205,8 +268,25 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* Section clone de voix */}
-      {!voixStatus.hasVoice || voixStatus.status !== 'ready' ? (
+      {/* ── Section 3 — Bandeau explicatif ────────────────────────────────── */}
+      <div className="bg-[#4A6FA5]/5 border border-[#4A6FA5]/20 rounded-xl p-4 space-y-2">
+        <div className="flex items-center gap-2 font-semibold text-[#4A6FA5]">
+          <Lightbulb className="h-4 w-4 flex-shrink-0" />
+          <span>{t('msg_how_it_works')}</span>
+        </div>
+        <ol className="text-sm text-[#2C2C2A] space-y-1 pl-2">
+          <li><span className="font-medium text-[#4A6FA5]">1.</span> {t('msg_step1')}</li>
+          <li><span className="font-medium text-[#4A6FA5]">2.</span> {t('msg_step2')}</li>
+          <li><span className="font-medium text-[#4A6FA5]">3.</span> {t('msg_step3')}</li>
+        </ol>
+        <p className="text-xs text-muted-foreground flex items-start gap-1 pt-1">
+          <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+          Le message jouera automatiquement avant ou après la musique choisie.
+        </p>
+      </div>
+
+      {/* ── Section 1 — Enregistrement de voix ────────────────────────────── */}
+      {(!voixStatus.hasVoice || voixStatus.status !== 'ready') ? (
         <Card className="border-[#4A6FA5] bg-[#4A6FA5]/5">
           <CardHeader>
             <CardTitle className="text-[#4A6FA5] text-lg">{t('record_voice_title')}</CardTitle>
@@ -244,37 +324,13 @@ export default function MessagesPage() {
           </CardContent>
         </Card>
       ) : (
-        <Badge className="bg-[#7BA05B] text-white text-base">{t('voice_ready_badge')}</Badge>
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-[#7BA05B]" />
+          <span className="text-base font-medium text-[#7BA05B]">{t('voice_ready_badge')}</span>
+        </div>
       )}
 
-      {/* Mode de diffusion */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <p className="font-medium text-base">{t('broadcast_mode_title')}</p>
-          {[
-            { value: 'ouverture', label: t('before_music_label'), desc: t('before_music_desc') },
-            { value: 'cloture', label: t('open_close_label'), desc: t('open_close_desc') },
-            { value: 'rotation', label: t('between_songs_label'), desc: t('between_songs_desc') },
-          ].map((mode) => (
-            <label key={mode.value} className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="mode_diffusion"
-                value={mode.value}
-                checked={newMsg.mode_diffusion === mode.value}
-                onChange={() => setNewMsg(m => ({ ...m, mode_diffusion: mode.value }))}
-                className="mt-1"
-              />
-              <div>
-                <p className="font-medium text-base">{mode.label}</p>
-                <p className="text-sm text-muted-foreground">{mode.desc}</p>
-              </div>
-            </label>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Créer un message */}
+      {/* ── Créer un message ──────────────────────────────────────────────── */}
       {voixStatus.status === 'ready' && messages.length < 20 && (
         <Card>
           <CardHeader><CardTitle className="text-lg">{t('create_message_title')}</CardTitle></CardHeader>
@@ -284,16 +340,14 @@ export default function MessagesPage() {
               <Input
                 className="mt-2 text-base h-11"
                 value={newMsg.titre}
-                onChange={(e) => setNewMsg(m => ({ ...m, titre: e.target.value }))}
+                onChange={e => setNewMsg(m => ({ ...m, titre: e.target.value }))}
                 placeholder="Ex: Bonjour du matin..."
               />
             </div>
             <div>
               <Label className="text-base">{t('msg_phase_label')}</Label>
-              <Select value={newMsg.phase} onValueChange={(v) => setNewMsg(m => ({ ...m, phase: v }))}>
-                <SelectTrigger className="mt-2 text-base h-11">
-                  <SelectValue />
-                </SelectTrigger>
+              <Select value={newMsg.phase} onValueChange={v => setNewMsg(m => ({ ...m, phase: v }))}>
+                <SelectTrigger className="mt-2 text-base h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PHASES.map(p => <SelectItem key={p.value} value={p.value} className="text-base">{p.label}</SelectItem>)}
                 </SelectContent>
@@ -306,8 +360,8 @@ export default function MessagesPage() {
               </div>
               <Textarea
                 value={newMsg.texte}
-                onChange={(e) => setNewMsg(m => ({ ...m, texte: e.target.value.slice(0, 500) }))}
-                placeholder="Ex: Bonjour Marie, c'est une belle journée qui commence. Voici ta musique préférée..."
+                onChange={e => setNewMsg(m => ({ ...m, texte: e.target.value.slice(0, 500) }))}
+                placeholder="Ex: Bonjour Marie, voici ta musique préférée…"
                 rows={4}
                 className="text-base"
               />
@@ -319,39 +373,219 @@ export default function MessagesPage() {
         </Card>
       )}
 
-      {/* Liste des messages */}
-      <div className="space-y-3">
-        {messages.map((msg) => (
-          <Card key={msg.id}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <Badge variant={phaseColor(msg.phase)}>{phaseLabel(msg.phase)}</Badge>
-                    {msg.auto_genere && <Badge variant="secondary" className="text-sm">{t('auto_generated_badge')}</Badge>}
-                    {msg.actif && <Badge className="bg-[#7BA05B] text-white text-sm">{t('active_badge')}</Badge>}
+      {/* ── Section 2 — Mes messages ─────────────────────────────────────── */}
+      {messages.length === 0 ? (
+        <p className="text-muted-foreground text-sm py-4 text-center">
+          Aucun message créé. Enregistrez votre voix pour commencer.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {messages.map((msg) => (
+            <Card key={msg.id}>
+              <CardContent className="p-4 space-y-3">
+
+                {/* En-tête : badges + titre */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                      <Badge variant="outline" className={`text-xs ${phaseClass(msg.phase)}`}>
+                        {phaseLabel(msg.phase)}
+                      </Badge>
+                      {msg.auto_genere && (
+                        <Badge variant="secondary" className="text-xs">{t('auto_generated_badge')}</Badge>
+                      )}
+                    </div>
+                    <p className="font-semibold text-base">{msg.titre}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">{msg.texte_source}</p>
                   </div>
-                  <p className="font-semibold text-base">{msg.titre}</p>
-                  <p className="text-sm text-muted-foreground line-clamp-2">{msg.texte_source}</p>
-                  {msg.audio_url && (
-                    <audio src={msg.audio_url} controls className="mt-2 w-full h-8" />
-                  )}
-                </div>
-                <div className="flex flex-col gap-2">
-                  {!msg.actif && (
-                    <Button size="sm" variant="outline" onClick={() => activerMessage(msg.id)}>
-                      <Check className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" className="text-destructive" onClick={() => supprimerMessage(msg.id)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive hover:bg-red-50 shrink-0 mt-0.5"
+                    onClick={() => supprimerMessage(msg.id)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+
+                {/* Player audio */}
+                {msg.audio_url && (
+                  <audio src={msg.audio_url} controls className="w-full h-8" />
+                )}
+
+                {/* Affectations actuelles */}
+                {msg.affectations && msg.affectations.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Affectations</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {msg.affectations.map((aff) => {
+                        const label = aff.type_affectation === 'playlist_phase'
+                          ? `📋 Playlist ${phaseLabel(aff.phase ?? '')} — ${aff.position === 'debut' ? t('msg_position_debut') : t('msg_position_fin')}`
+                          : `🎵 ${titres.find(t => t.id === aff.titre_id)?.titre ?? 'Titre'} — ${aff.position === 'debut' ? t('msg_position_debut') : t('msg_position_fin')}`;
+                        return (
+                          <span
+                            key={aff.id}
+                            className="inline-flex items-center gap-1 text-xs bg-[#4A6FA5]/10 text-[#4A6FA5] border border-[#4A6FA5]/20 rounded-full px-2 py-0.5"
+                          >
+                            {label}
+                            <button
+                              onClick={() => deleteAffectation(aff.id)}
+                              className="hover:opacity-60 ml-0.5"
+                              title="Supprimer cette affectation"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 flex-wrap pt-1">
+                  {msg.audio_url && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-sm"
+                      onClick={() => saveToDevice(msg.audio_url!, msg.titre)}
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      {t('msg_save_device')}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    className="bg-[#4A6FA5] text-white text-sm"
+                    onClick={() => openModal(msg.id)}
+                  >
+                    <Pin className="h-3.5 w-3.5 mr-1.5" />
+                    {t('msg_affect_btn')}
+                  </Button>
+                </div>
+
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* ── Modal d'affectation ───────────────────────────────────────────── */}
+      {modalMsgId && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={e => { if (e.target === e.currentTarget) setModalMsgId(null); }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-[#2C2C2A]">Où diffuser ce message ?</h2>
+              <button onClick={() => setModalMsgId(null)} className="text-muted-foreground hover:text-[#2C2C2A]">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Type d'affectation */}
+            <div className="space-y-3">
+              {[
+                { value: 'playlist_phase' as const, label: t('msg_affect_playlist'), icon: '📋' },
+                { value: 'titre_specifique' as const, label: t('msg_affect_titre'), icon: '🎵' },
+              ].map(opt => (
+                <label
+                  key={opt.value}
+                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${
+                    modalType === opt.value
+                      ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
+                      : 'border-[#EDEAE3] hover:border-[#4A6FA5]/30'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modal_type"
+                    value={opt.value}
+                    checked={modalType === opt.value}
+                    onChange={() => setModalType(opt.value)}
+                    className="sr-only"
+                  />
+                  <span className="text-xl">{opt.icon}</span>
+                  <span className="font-medium text-base">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Sélection phase ou titre */}
+            {modalType === 'playlist_phase' ? (
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Playlist</Label>
+                <Select value={modalPhase} onValueChange={setModalPhase}>
+                  <SelectTrigger className="h-10 text-base"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PHASES.filter(p => p.value !== 'toutes').map(p => (
+                      <SelectItem key={p.value} value={p.value} className="text-base">{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            ) : (
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Titre musical</Label>
+                {titres.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucun titre associé — ajoutez d&apos;abord des titres dans &quot;Mes titres&quot;.</p>
+                ) : (
+                  <Select value={modalTitreId} onValueChange={setModalTitreId}>
+                    <SelectTrigger className="h-10 text-base"><SelectValue placeholder="Choisir un titre…" /></SelectTrigger>
+                    <SelectContent>
+                      {titres.map(t => (
+                        <SelectItem key={t.id} value={t.id} className="text-base">
+                          {t.titre} — {t.artiste}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
+
+            {/* Position */}
+            <div>
+              <Label className="text-sm font-medium mb-1.5 block">Position</Label>
+              <div className="flex gap-2">
+                {[
+                  { value: 'debut' as const, label: t('msg_position_debut') },
+                  { value: 'fin'   as const, label: t('msg_position_fin') },
+                ].map(pos => (
+                  <button
+                    key={pos.value}
+                    onClick={() => setModalPosition(pos.value)}
+                    className={`flex-1 py-2 rounded-lg border-2 text-base font-medium transition-colors ${
+                      modalPosition === pos.value
+                        ? 'bg-[#4A6FA5] text-white border-[#4A6FA5]'
+                        : 'border-[#EDEAE3] text-[#2C2C2A] hover:border-[#4A6FA5]/40'
+                    }`}
+                  >
+                    {pos.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions modal */}
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setModalMsgId(null)}>
+                {t('cancel')}
+              </Button>
+              <Button
+                className="flex-1 bg-[#4A6FA5] text-white"
+                onClick={saveAffectation}
+                disabled={savingAffectation || (modalType === 'titre_specifique' && !modalTitreId)}
+              >
+                {savingAffectation ? t('saving_label') : '✅ Confirmer l\'affectation'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
