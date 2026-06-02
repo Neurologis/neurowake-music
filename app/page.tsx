@@ -63,17 +63,6 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Bandeau disclaimer médical */}
-      <div className="w-full bg-[#FFF9E6] border-b border-[#F0C040] px-4 py-3 text-center">
-        <p className="text-sm text-[#7A6000] max-w-3xl mx-auto">
-          ⚕️ <strong>{t('footer_not_medical')}.</strong>{' '}
-          {t('disclaimer_text')}{' '}
-          <Link href="/app/aide" className="underline hover:opacity-70">
-            {t('disclaimer_learn_more')}
-          </Link>
-        </p>
-      </div>
-
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 py-20 text-center">
         <h1 className="text-4xl lg:text-5xl font-bold text-[#2C2C2A] leading-tight mb-6">
@@ -151,25 +140,55 @@ export default function LandingPage() {
         </Link>
       </section>
 
-      {/* Footer copyright */}
-      <footer className="w-full bg-[#F7F5F0] border-t border-[#EDEAE3] py-6 px-4 mt-12">
-        <div className="max-w-4xl mx-auto flex flex-col items-center gap-2 text-center">
-          <p className="text-sm text-muted-foreground">
-            © 2026 <strong>Neurologis</strong> — {t('footer_rights')}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {t('footer_created_by')} <strong>Jean Charles Orozco</strong> — Avignon, France
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {t('footer_not_medical')} · {t('footer_hosting')}
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground mt-1">
-            <Link href="/app/aide" className="hover:underline">{t('disclaimer_learn_more')} &amp; FAQ</Link>
-            <span>·</span>
-            <Link href="mailto:support@neurologis.fr" className="hover:underline">support@neurologis.fr</Link>
-            <span>·</span>
-            <Link href="mailto:privacy@neurologis.fr" className="hover:underline">Données personnelles</Link>
+      {/* Footer */}
+      <footer className="w-full bg-[#2C3E50] py-10 px-4 mt-12">
+        <div className="max-w-4xl mx-auto flex flex-col items-center gap-6 text-center">
+
+          {/* Logo + Copyright principal */}
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-3xl font-bold text-white tracking-wide">
+              © 2026 NEUROLOGIS
+            </p>
+            <p className="text-lg text-[#7BA05B] font-semibold">
+              {t('footer_created_by')} Jean Charles Orozco
+            </p>
+            <p className="text-sm text-gray-400">
+              Avignon, France — {t('footer_rights')}
+            </p>
           </div>
+
+          {/* Séparateur */}
+          <div className="w-24 h-px bg-gray-600" />
+
+          {/* Disclaimer médical */}
+          <div className="max-w-2xl">
+            <p className="text-sm text-gray-300 leading-relaxed">
+              ⚕️ <strong className="text-white">{t('footer_not_medical')}.</strong>{' '}
+              {t('disclaimer_text')}
+            </p>
+          </div>
+
+          {/* Infos légales */}
+          <div className="flex flex-col gap-1">
+            <p className="text-xs text-gray-500">{t('footer_hosting')}</p>
+            <p className="text-xs text-gray-500">{t('footer_not_medical')}</p>
+          </div>
+
+          {/* Liens */}
+          <div className="flex flex-wrap justify-center gap-4 text-xs text-gray-400">
+            <a href="/app/aide" className="hover:text-white transition-colors">
+              {t('disclaimer_learn_more')} &amp; FAQ
+            </a>
+            <span>·</span>
+            <a href="mailto:support@neurologis.fr" className="hover:text-white transition-colors">
+              support@neurologis.fr
+            </a>
+            <span>·</span>
+            <a href="mailto:privacy@neurologis.fr" className="hover:text-white transition-colors">
+              Données personnelles
+            </a>
+          </div>
+
         </div>
       </footer>
     </div>
