@@ -121,15 +121,29 @@ async function resolvePlaylist(apiUrl: string): Promise<PlaylistTrack[]> {
 export default function PlayerPage() {
   const { t } = useT();
 
-  const [profil, setProfil]                     = useState<Profil | null>(null);
-  const [activePlaylist, setActivePlaylist]      = useState<PlaylistType>('matin');
-  const [conseil, setConseil]                   = useState<string | null>(null);
-  const [messageEnabled, setMessageEnabled]     = useState(false);
+  const [profil, setProfil]                 = useState<Profil | null>(null);
+  const [activePlaylist, setActivePlaylist] = useState<PlaylistType>('matin');
+  const [conseil, setConseil]               = useState<string | null>(null);
+  const [messageEnabled, setMessageEnabled] = useState(false);
 
-  // Messages v2 — affectations de la phase courante
-  const [phaseMessageDebut, setPhaseMessageDebut] = useState<{ titre: string; audio_url: string | null } | null>(null);
-  const [phaseMessageFin,   setPhaseMessageFin]   = useState<{ titre: string; audio_url: string | null } | null>(null);
-  const msgAudioRef = useRef<HTMLAudioElement | null>(null);
+  // ── Messages v2 — lookup maps (refs = toujours frais dans les closures) ────
+  interface MsgEntry { titre: string; audio_url: string | null }
+  // Pour l'affichage dans la carte : messages de la phase courante
+  const [phaseMessageDebut, setPhaseMessageDebut] = useState<MsgEntry | null>(null);
+  const [phaseMessageFin,   setPhaseMessageFin]   = useState<MsgEntry | null>(null);
+
+  // Lookup maps utilisées pendant la lecture
+  const phaseDebutMapRef  = useRef<Record<string, MsgEntry>>({});
+  const phaseFinMapRef    = useRef<Record<string, MsgEntry>>({});
+  const titreDebutMapRef  = useRef<Record<string, MsgEntry>>({});
+  const titreFinMapRef    = useRef<Record<string, MsgEntry>>({});
+
+  // Audio pour les messages vocaux (ne touche pas le Web Audio du player)
+  const msgAudioRef        = useRef<HTMLAudioElement | null>(null);
+  // Détection de changement de piste pour les messages par titre
+  const prevTrackIndexRef  = useRef<number>(-1);
+  // Évite de rejouer le message de fin si l'utilisateur a pausé manuellement
+  const finMsgPlayedRef    = useRef<boolean>(false);
 
   const [userPlaylists, setUserPlaylists]               = useState<UserPlaylist[]>([]);
   const [launchingPlaylistId, setLaunchingPlaylistId]   = useState<string | null>(null);
@@ -163,8 +177,54 @@ export default function PlayerPage() {
   useEffect(() => {
     loadConseil();
     loadMessage();
+    // Mettre à jour les états d'affichage depuis les refs existantes
+    setPhaseMessageDebut(phaseDebutMapRef.current[activePlaylist] ?? null);
+    setPhaseMessageFin(phaseFinMapRef.current[activePlaylist]     ?? null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylist]);
+
+  // ── Changement de piste → messages titre-spécifiques ──────────────────────
+  useEffect(() => {
+    if (!messageEnabled || !player.isPlaying) return;
+    const idx = player.currentIndex;
+    if (idx < 0 || idx === prevTrackIndexRef.current) return;
+
+    const prevIdx    = prevTrackIndexRef.current;
+    const currentId  = player.tracks[idx]?.id;
+
+    // Message FIN du titre précédent
+    if (prevIdx >= 0) {
+      const prevId = player.tracks[prevIdx]?.id;
+      const finMsg = prevId ? titreFinMapRef.current[prevId] : undefined;
+      if (finMsg?.audio_url) playMessageAudio(finMsg.audio_url);
+    }
+
+    // Message DÉBUT du titre courant → pause musique, message, reprise
+    const debutMsg = currentId ? titreDebutMapRef.current[currentId] : undefined;
+    if (debutMsg?.audio_url) {
+      player.pause();
+      playMessageAudio(debutMsg.audio_url).then(() => player.resume());
+    }
+
+    prevTrackIndexRef.current = idx;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.currentIndex, player.isPlaying, messageEnabled]);
+
+  // ── Fin de playlist → message de fin de phase ─────────────────────────────
+  useEffect(() => {
+    if (!messageEnabled || finMsgPlayedRef.current) return;
+    const tracks = player.tracks;
+    const isLastTrack = tracks.length > 0 && player.currentIndex === tracks.length - 1;
+    // Playlist terminée = dernier titre, lecture arrêtée, il y avait bien des pistes
+    if (!player.isPlaying && isLastTrack && tracks.length > 0) {
+      const finMsg = phaseFinMapRef.current[activePlaylist];
+      if (finMsg?.audio_url) {
+        finMsgPlayedRef.current = true;
+        playMessageAudio(finMsg.audio_url);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.isPlaying, player.currentIndex, messageEnabled]);
 
   async function loadUserPlaylists() {
     const res = await fetch('/api/playlists');
@@ -183,48 +243,89 @@ export default function PlayerPage() {
     }
   }
 
-  /** Charge les messages affectés à la phase courante (positions debut/fin). */
+  /**
+   * Charge TOUS les messages avec leurs affectations et construit les lookup maps.
+   * Pas de filtre par phase ici — on filtre via les affectations.
+   */
   async function loadMessage() {
-    const res = await fetch(`/api/messages?phase=${activePlaylist}`);
+    const res = await fetch('/api/messages'); // pas de filtre phase
     if (!res.ok) return;
     const { messages } = await res.json();
-    if (!messages?.length) { setPhaseMessageDebut(null); setPhaseMessageFin(null); return; }
 
-    type MsgWithAff = { titre: string; audio_url: string | null; affectations?: Array<{ type_affectation: string; position: string; phase: string | null }> };
-    const findAffected = (pos: 'debut' | 'fin') =>
-      (messages as MsgWithAff[]).find(m =>
-        m.affectations?.some(a => a.type_affectation === 'playlist_phase' && a.position === pos && a.phase === activePlaylist)
-      ) ?? null;
+    type Aff = { type_affectation: string; position: string; phase: string | null; titre_id: string | null };
+    type Msg = { titre: string; audio_url: string | null; affectations?: Aff[] };
 
-    setPhaseMessageDebut(findAffected('debut'));
-    setPhaseMessageFin(findAffected('fin'));
+    const byPhaseDebut: Record<string, MsgEntry> = {};
+    const byPhaseFin:   Record<string, MsgEntry> = {};
+    const byTitreDebut: Record<string, MsgEntry> = {};
+    const byTitreFin:   Record<string, MsgEntry> = {};
+
+    for (const m of (messages ?? []) as Msg[]) {
+      const entry: MsgEntry = { titre: m.titre, audio_url: m.audio_url };
+      for (const a of (m.affectations ?? [])) {
+        if (a.type_affectation === 'playlist_phase' && a.phase) {
+          if (a.position === 'debut') byPhaseDebut[a.phase] = entry;
+          else                         byPhaseFin[a.phase]   = entry;
+        } else if (a.type_affectation === 'titre_specifique' && a.titre_id) {
+          if (a.position === 'debut') byTitreDebut[a.titre_id] = entry;
+          else                         byTitreFin[a.titre_id]   = entry;
+        }
+      }
+    }
+
+    // Mettre à jour les refs (toujours frais dans les closures des useEffects)
+    phaseDebutMapRef.current = byPhaseDebut;
+    phaseFinMapRef.current   = byPhaseFin;
+    titreDebutMapRef.current = byTitreDebut;
+    titreFinMapRef.current   = byTitreFin;
+
+    // Mettre à jour l'affichage pour la phase active courante
+    setPhaseMessageDebut(byPhaseDebut[activePlaylist] ?? null);
+    setPhaseMessageFin(byPhaseFin[activePlaylist]     ?? null);
+  }
+
+  /**
+   * Joue un message vocal via Audio HTML standard.
+   * Arrête tout message en cours. Retourne une Promise qui se résout à la fin.
+   */
+  function playMessageAudio(audioUrl: string): Promise<void> {
+    // Stopper le message précédent s'il est encore en cours
+    if (msgAudioRef.current) {
+      msgAudioRef.current.pause();
+      msgAudioRef.current.onended = null;
+      msgAudioRef.current.onerror = null;
+      msgAudioRef.current = null;
+    }
+    return new Promise<void>((resolve) => {
+      const audio = new Audio(audioUrl);
+      msgAudioRef.current = audio;
+      audio.onended = () => { msgAudioRef.current = null; resolve(); };
+      audio.onerror = () => { msgAudioRef.current = null; resolve(); };
+      audio.play().catch(() => { msgAudioRef.current = null; resolve(); });
+    });
   }
 
   async function startSystemPlaylist(type: PlaylistType): Promise<boolean> {
     const tracks = await resolvePlaylist(`/api/playlist/${type}`);
-
     if (tracks.length === 0) {
       toast({ title: t('no_audio'), description: t('no_audio_for_phase') });
       return false;
     }
 
-    // Jouer le message de début (affecté à cette phase) avant la playlist
-    const debutMsg = messageEnabled ? phaseMessageDebut : null;
-    if (debutMsg?.audio_url) {
-      try {
-        const audio = new Audio(debutMsg.audio_url);
-        msgAudioRef.current = audio;
-        await new Promise<void>((resolve) => {
-          audio.onended = () => resolve();
-          audio.onerror = () => resolve(); // ne pas bloquer si erreur
-          audio.play().catch(() => resolve());
-        });
-      } catch { /* non-bloquant */ }
+    // Réinitialiser le suivi de piste et du message de fin
+    prevTrackIndexRef.current = -1;
+    finMsgPlayedRef.current   = false;
+
+    // Message de début de phase
+    if (messageEnabled) {
+      const debutMsg = phaseDebutMapRef.current[type];
+      if (debutMsg?.audio_url) {
+        await playMessageAudio(debutMsg.audio_url);
+      }
     }
 
     await player.playTrackList(tracks, t(PHASE_FULL_KEYS[type]));
 
-    // Logguer la session
     fetch('/api/session/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -233,7 +334,7 @@ export default function PlayerPage() {
         duree_secondes: 0,
         gamma_actif:    player.gammaEnabled,
         gamma_mode:     player.gammaMode,
-        message_joue:   messageEnabled && !!phaseMessageDebut,
+        message_joue:   messageEnabled && !!(phaseDebutMapRef.current[type] || phaseFinMapRef.current[type]),
       }),
     });
 
@@ -263,15 +364,13 @@ export default function PlayerPage() {
     setLaunchingPlaylistId(pl.id);
     try {
       const tracks = await resolvePlaylist(`/api/playlists/${pl.id}/titres`);
-
       if (tracks.length === 0) {
-        toast({
-          title:       t('no_audio'),
-          description: t('no_audio_desc'),
-        });
+        toast({ title: t('no_audio'), description: t('no_audio_desc') });
         return;
       }
 
+      prevTrackIndexRef.current = -1;
+      finMsgPlayedRef.current   = false;
       setActiveUserPlaylistId(pl.id);
       await player.playTrackList(tracks, pl.nom);
     } catch {
