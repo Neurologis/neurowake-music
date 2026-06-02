@@ -257,6 +257,13 @@ const T = {
     landing_cta_desc:       '14 jours gratuits, sans engagement',
     landing_create_account: 'Créer mon compte',
     landing_disclaimer:     'NeuroWake Music n\'est pas un dispositif médical',
+    // ── Disclaimer & Footer ──────────────────────────────────────────────────
+    disclaimer_text:        "NeuroWake Music n'est pas un logiciel médical. Il ne se substitue pas à un suivi médical et ne traite aucune pathologie. Son utilisation doit être validée par votre médecin. Aucune donnée médicale n'est collectée.",
+    disclaimer_learn_more:  'En savoir plus',
+    footer_rights:          'Tous droits réservés',
+    footer_created_by:      'Créé par',
+    footer_not_medical:     'NeuroWake Music n\'est pas un dispositif médical',
+    footer_hosting:         'Hébergement des données : Frankfurt, EU · Conforme RGPD',
     // ── Messages v2 ─────────────────────────────────────────────────────────
     msg_affect_btn:       'Affecter ce message',
     msg_save_device:      'Sauvegarder sur mon appareil',
@@ -535,6 +542,13 @@ const T = {
     landing_cta_desc:       '14 días gratis, sin compromiso',
     landing_create_account: 'Crear mi cuenta',
     landing_disclaimer:     'NeuroWake Music no es un dispositivo médico',
+    // ── Disclaimer & Footer ──────────────────────────────────────────────────
+    disclaimer_text:        'NeuroWake Music no es un software médico. No sustituye al seguimiento médico ni trata ninguna patología. Su uso debe ser validado por su médico. No se recopilan datos médicos.',
+    disclaimer_learn_more:  'Más información',
+    footer_rights:          'Todos los derechos reservados',
+    footer_created_by:      'Creado por',
+    footer_not_medical:     'NeuroWake Music no es un dispositivo médico',
+    footer_hosting:         'Alojamiento de datos: Frankfurt, UE · Conforme RGPD',
     // ── Messages v2 ─────────────────────────────────────────────────────────
     msg_affect_btn:       'Asignar mensaje',
     msg_save_device:      'Guardar en mi dispositivo',
@@ -813,6 +827,13 @@ const T = {
     landing_cta_desc:       '14 days free, no commitment',
     landing_create_account: 'Create my account',
     landing_disclaimer:     'NeuroWake Music is not a medical device',
+    // ── Disclaimer & Footer ──────────────────────────────────────────────────
+    disclaimer_text:        'NeuroWake Music is not medical software. It does not replace medical supervision and does not treat any condition. Its use should be validated by your doctor. No medical data is collected.',
+    disclaimer_learn_more:  'Learn more',
+    footer_rights:          'All rights reserved',
+    footer_created_by:      'Created by',
+    footer_not_medical:     'NeuroWake Music is not a medical device',
+    footer_hosting:         'Data hosting: Frankfurt, EU · GDPR compliant',
     // ── Messages v2 ─────────────────────────────────────────────────────────
     msg_affect_btn:       'Assign message',
     msg_save_device:      'Save to my device',

@@ -5,7 +5,7 @@ import { storeLangue, getStoredLangue, type Langue } from '@/lib/i18n';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Music, Upload, Play, Shield } from 'lucide-react';
+import { Music, Upload, Play } from 'lucide-react';
 
 const LANGS: { code: Langue; src: string; alt: string }[] = [
   { code: 'fr', src: 'https://flagcdn.com/32x24/fr.png', alt: 'Français' },
@@ -62,6 +62,17 @@ export default function LandingPage() {
           </div>
         </div>
       </header>
+
+      {/* Bandeau disclaimer médical */}
+      <div className="w-full bg-[#FFF9E6] border-b border-[#F0C040] px-4 py-3 text-center">
+        <p className="text-sm text-[#7A6000] max-w-3xl mx-auto">
+          ⚕️ <strong>{t('footer_not_medical')}.</strong>{' '}
+          {t('disclaimer_text')}{' '}
+          <Link href="/app/aide" className="underline hover:opacity-70">
+            {t('disclaimer_learn_more')}
+          </Link>
+        </p>
+      </div>
 
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 py-20 text-center">
@@ -140,16 +151,25 @@ export default function LandingPage() {
         </Link>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t py-8 bg-white">
-        <div className="max-w-4xl mx-auto px-4 text-center space-y-2">
-          <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
-            <Shield className="h-4 w-4" />
-            <span>{t('landing_disclaimer')}</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} NeuroWake Music · <Link href="mailto:contact@neurologis.fr" className="hover:underline">contact@neurologis.fr</Link>
+      {/* Footer copyright */}
+      <footer className="w-full bg-[#F7F5F0] border-t border-[#EDEAE3] py-6 px-4 mt-12">
+        <div className="max-w-4xl mx-auto flex flex-col items-center gap-2 text-center">
+          <p className="text-sm text-muted-foreground">
+            © 2026 <strong>Neurologis</strong> — {t('footer_rights')}
           </p>
+          <p className="text-xs text-muted-foreground">
+            {t('footer_created_by')} <strong>Jean Charles Orozco</strong> — Avignon, France
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t('footer_not_medical')} · {t('footer_hosting')}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground mt-1">
+            <Link href="/app/aide" className="hover:underline">{t('disclaimer_learn_more')} &amp; FAQ</Link>
+            <span>·</span>
+            <Link href="mailto:support@neurologis.fr" className="hover:underline">support@neurologis.fr</Link>
+            <span>·</span>
+            <Link href="mailto:privacy@neurologis.fr" className="hover:underline">Données personnelles</Link>
+          </div>
         </div>
       </footer>
     </div>
