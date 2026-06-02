@@ -171,36 +171,45 @@ export default function PlayerPage() {
     });
     loadConseil();
     loadUserPlaylists();
+    // Charger les messages une seule fois au montage
+    loadMessage();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     loadConseil();
-    loadMessage();
-    // Mettre à jour les états d'affichage depuis les refs existantes
+    // Mettre à jour les états d'affichage depuis les refs (pas besoin de recharger l'API)
     setPhaseMessageDebut(phaseDebutMapRef.current[activePlaylist] ?? null);
     setPhaseMessageFin(phaseFinMapRef.current[activePlaylist]     ?? null);
+    console.log('[NW] activePlaylist changed →', activePlaylist,
+      '| debut:', phaseDebutMapRef.current[activePlaylist]?.titre ?? 'none',
+      '| fin:',   phaseFinMapRef.current[activePlaylist]?.titre   ?? 'none');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylist]);
 
   // ── Changement de piste → messages titre-spécifiques ──────────────────────
   useEffect(() => {
-    if (!messageEnabled || !player.isPlaying) return;
     const idx = player.currentIndex;
+    console.log('[NW] track-change effect — idx:', idx, '| isPlaying:', player.isPlaying, '| msgEnabled:', messageEnabled);
+
+    if (!messageEnabled || !player.isPlaying) return;
     if (idx < 0 || idx === prevTrackIndexRef.current) return;
 
-    const prevIdx    = prevTrackIndexRef.current;
-    const currentId  = player.tracks[idx]?.id;
+    const prevIdx   = prevTrackIndexRef.current;
+    const currentId = player.tracks[idx]?.id;
+    console.log('[NW] track changed from', prevIdx, 'to', idx, '| currentId:', currentId?.slice(0,8));
 
     // Message FIN du titre précédent
     if (prevIdx >= 0) {
       const prevId = player.tracks[prevIdx]?.id;
       const finMsg = prevId ? titreFinMapRef.current[prevId] : undefined;
+      console.log('[NW] titreFin for prev track:', finMsg?.titre ?? 'none');
       if (finMsg?.audio_url) playMessageAudio(finMsg.audio_url);
     }
 
     // Message DÉBUT du titre courant → pause musique, message, reprise
     const debutMsg = currentId ? titreDebutMapRef.current[currentId] : undefined;
+    console.log('[NW] titreDebut for current track:', debutMsg?.titre ?? 'none');
     if (debutMsg?.audio_url) {
       player.pause();
       playMessageAudio(debutMsg.audio_url).then(() => player.resume());
@@ -212,12 +221,15 @@ export default function PlayerPage() {
 
   // ── Fin de playlist → message de fin de phase ─────────────────────────────
   useEffect(() => {
-    if (!messageEnabled || finMsgPlayedRef.current) return;
     const tracks = player.tracks;
     const isLastTrack = tracks.length > 0 && player.currentIndex === tracks.length - 1;
-    // Playlist terminée = dernier titre, lecture arrêtée, il y avait bien des pistes
+    console.log('[NW] playlist-end effect — isPlaying:', player.isPlaying, '| isLastTrack:', isLastTrack,
+      '| finPlayed:', finMsgPlayedRef.current, '| msgEnabled:', messageEnabled);
+
+    if (!messageEnabled || finMsgPlayedRef.current) return;
     if (!player.isPlaying && isLastTrack && tracks.length > 0) {
       const finMsg = phaseFinMapRef.current[activePlaylist];
+      console.log('[NW] playlist ended — phaseFin for', activePlaylist, ':', finMsg?.titre ?? 'none');
       if (finMsg?.audio_url) {
         finMsgPlayedRef.current = true;
         playMessageAudio(finMsg.audio_url);
@@ -245,15 +257,20 @@ export default function PlayerPage() {
 
   /**
    * Charge TOUS les messages avec leurs affectations et construit les lookup maps.
-   * Pas de filtre par phase ici — on filtre via les affectations.
+   * Appelé une seule fois au montage — les refs sont toujours frais dans les closures.
    */
   async function loadMessage() {
-    const res = await fetch('/api/messages'); // pas de filtre phase
-    if (!res.ok) return;
+    console.log('[NW] loadMessage() — fetching /api/messages ...');
+    const res = await fetch('/api/messages');
+    if (!res.ok) {
+      console.warn('[NW] loadMessage() — API error', res.status);
+      return;
+    }
     const { messages } = await res.json();
+    console.log('[NW] loadMessage() — received', messages?.length ?? 0, 'messages');
 
     type Aff = { type_affectation: string; position: string; phase: string | null; titre_id: string | null };
-    type Msg = { titre: string; audio_url: string | null; affectations?: Aff[] };
+    type Msg = { id: string; titre: string; audio_url: string | null; affectations?: Aff[] };
 
     const byPhaseDebut: Record<string, MsgEntry> = {};
     const byPhaseFin:   Record<string, MsgEntry> = {};
@@ -261,27 +278,50 @@ export default function PlayerPage() {
     const byTitreFin:   Record<string, MsgEntry> = {};
 
     for (const m of (messages ?? []) as Msg[]) {
+      const affs = m.affectations ?? [];
+      console.log(`[NW]   msg "${m.titre}" (id=${m.id.slice(0,8)}) — audio_url=${m.audio_url ? 'OK' : 'NULL'} — ${affs.length} affectation(s)`);
       const entry: MsgEntry = { titre: m.titre, audio_url: m.audio_url };
-      for (const a of (m.affectations ?? [])) {
+      for (const a of affs) {
+        console.log(`[NW]     → ${a.type_affectation} | ${a.position} | phase=${a.phase} | titre_id=${a.titre_id?.slice(0,8) ?? 'null'}`);
         if (a.type_affectation === 'playlist_phase' && a.phase) {
           if (a.position === 'debut') byPhaseDebut[a.phase] = entry;
-          else                         byPhaseFin[a.phase]   = entry;
+          else                        byPhaseFin[a.phase]   = entry;
         } else if (a.type_affectation === 'titre_specifique' && a.titre_id) {
           if (a.position === 'debut') byTitreDebut[a.titre_id] = entry;
-          else                         byTitreFin[a.titre_id]   = entry;
+          else                        byTitreFin[a.titre_id]   = entry;
         }
       }
     }
 
-    // Mettre à jour les refs (toujours frais dans les closures des useEffects)
+    console.log('[NW] loadMessage() — phaseDebut keys:', Object.keys(byPhaseDebut));
+    console.log('[NW] loadMessage() — phaseFin keys:',   Object.keys(byPhaseFin));
+    console.log('[NW] loadMessage() — titreDebut keys:', Object.keys(byTitreDebut));
+    console.log('[NW] loadMessage() — titreFin keys:',   Object.keys(byTitreFin));
+
+    // Mettre à jour les refs
     phaseDebutMapRef.current = byPhaseDebut;
     phaseFinMapRef.current   = byPhaseFin;
     titreDebutMapRef.current = byTitreDebut;
     titreFinMapRef.current   = byTitreFin;
 
     // Mettre à jour l'affichage pour la phase active courante
-    setPhaseMessageDebut(byPhaseDebut[activePlaylist] ?? null);
-    setPhaseMessageFin(byPhaseFin[activePlaylist]     ?? null);
+    // Note: activePlaylist peut être stale ici — on utilise la valeur initiale 'matin'
+    // L'effet sur [activePlaylist] mettra à jour l'affichage ensuite
+    const currentPhase = activePlaylist;
+    const debutEntry = byPhaseDebut[currentPhase];
+    const finEntry   = byPhaseFin[currentPhase];
+    setPhaseMessageDebut(debutEntry ?? null);
+    setPhaseMessageFin(finEntry     ?? null);
+
+    // Auto-activer le switch si des messages sont affectés
+    const hasAnyMessage = Object.keys(byPhaseDebut).length > 0 ||
+                          Object.keys(byPhaseFin).length   > 0 ||
+                          Object.keys(byTitreDebut).length > 0 ||
+                          Object.keys(byTitreFin).length   > 0;
+    if (hasAnyMessage) {
+      console.log('[NW] loadMessage() — messages disponibles, activation du switch');
+      setMessageEnabled(true);
+    }
   }
 
   /**
@@ -289,7 +329,7 @@ export default function PlayerPage() {
    * Arrête tout message en cours. Retourne une Promise qui se résout à la fin.
    */
   function playMessageAudio(audioUrl: string): Promise<void> {
-    // Stopper le message précédent s'il est encore en cours
+    console.log('[NW] playMessageAudio() — url:', audioUrl.slice(0, 80) + '...');
     if (msgAudioRef.current) {
       msgAudioRef.current.pause();
       msgAudioRef.current.onended = null;
@@ -299,9 +339,21 @@ export default function PlayerPage() {
     return new Promise<void>((resolve) => {
       const audio = new Audio(audioUrl);
       msgAudioRef.current = audio;
-      audio.onended = () => { msgAudioRef.current = null; resolve(); };
-      audio.onerror = () => { msgAudioRef.current = null; resolve(); };
-      audio.play().catch(() => { msgAudioRef.current = null; resolve(); });
+      audio.onended = () => {
+        console.log('[NW] playMessageAudio() — ended');
+        msgAudioRef.current = null;
+        resolve();
+      };
+      audio.onerror = (e) => {
+        console.error('[NW] playMessageAudio() — error', e);
+        msgAudioRef.current = null;
+        resolve();
+      };
+      audio.play().catch((err) => {
+        console.error('[NW] playMessageAudio() — play() rejected:', err);
+        msgAudioRef.current = null;
+        resolve();
+      });
     });
   }
 
@@ -312,16 +364,26 @@ export default function PlayerPage() {
       return false;
     }
 
-    // Réinitialiser le suivi de piste et du message de fin
     prevTrackIndexRef.current = -1;
     finMsgPlayedRef.current   = false;
+
+    console.log('[NW] startSystemPlaylist() — type:', type,
+      '| messageEnabled:', messageEnabled,
+      '| phaseDebut keys:', Object.keys(phaseDebutMapRef.current),
+      '| phaseFin keys:',   Object.keys(phaseFinMapRef.current));
 
     // Message de début de phase
     if (messageEnabled) {
       const debutMsg = phaseDebutMapRef.current[type];
+      console.log('[NW] startSystemPlaylist() — debutMsg for phase', type, ':', debutMsg ?? 'NONE');
       if (debutMsg?.audio_url) {
+        console.log('[NW] startSystemPlaylist() — playing debut message before tracks');
         await playMessageAudio(debutMsg.audio_url);
+      } else {
+        console.log('[NW] startSystemPlaylist() — no debut message (audio_url null or no entry)');
       }
+    } else {
+      console.log('[NW] startSystemPlaylist() — messageEnabled=false, skipping messages');
     }
 
     await player.playTrackList(tracks, t(PHASE_FULL_KEYS[type]));
