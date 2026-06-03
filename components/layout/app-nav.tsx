@@ -37,7 +37,10 @@ export function AppNav({ profil, userEmail }: NavProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logoappli.png" alt="NeuroWake Music" className="h-32 w-auto" />
         {profil?.prenom_proche && (
-          <div className="text-sm text-muted-foreground mt-1">Profil de {profil.prenom_proche}</div>
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground">Bienvenue,</p>
+            <p className="text-sm font-semibold text-[#2C2C2A]">{profil.prenom_proche}</p>
+          </div>
         )}
       </div>
 
@@ -51,7 +54,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
               href={item.href}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                isActive ? 'bg-[#4A6FA5] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
+                isActive ? 'bg-[#F5A623] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
               )}
             >
               <Icon className="h-5 w-5" />
@@ -65,7 +68,7 @@ export function AppNav({ profil, userEmail }: NavProps) {
             href="/admin"
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-              pathname.startsWith('/admin') ? 'bg-[#4A6FA5] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
+              pathname.startsWith('/admin') ? 'bg-[#F5A623] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
             )}
           >
             <Shield className="h-5 w-5" />

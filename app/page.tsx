@@ -43,7 +43,7 @@ export default function LandingPage() {
                   className={`
                     transition-all rounded overflow-hidden
                     ${activeLang === code
-                      ? 'ring-2 ring-[#4A6FA5] ring-offset-1 scale-110 opacity-100'
+                      ? 'ring-2 ring-[#F5A623] ring-offset-1 scale-110 opacity-100'
                       : 'opacity-60 hover:opacity-100 hover:scale-105'
                     }
                   `}
@@ -57,7 +57,7 @@ export default function LandingPage() {
               <Button variant="outline" size="sm">{t('landing_connect')}</Button>
             </Link>
             <Link href="/signup">
-              <Button size="sm" className="bg-[#4A6FA5]">{t('landing_start_free')}</Button>
+              <Button size="sm" className="bg-[#F5A623] hover:bg-[#F5A623]/90">{t('landing_start_free')}</Button>
             </Link>
           </div>
         </div>
@@ -65,14 +65,21 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <h1 className="text-4xl lg:text-5xl font-bold text-[#2C2C2A] leading-tight mb-6">
-          {t('landing_hero_title')}
-        </h1>
+        <h1
+          className="text-4xl lg:text-5xl font-bold text-[#2C2C2A] leading-tight mb-3"
+          dangerouslySetInnerHTML={{
+            __html: t('landing_hero_title').replace(
+              /vraiment|realmente|truly/gi,
+              (m) => `<span style="color:#F5A623">${m}</span>`,
+            ),
+          }}
+        />
+        <p className="text-lg font-semibold text-[#F5A623] mb-4">Choisissez le moment de la journée</p>
         <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
           {t('landing_hero_desc')}
         </p>
         <Link href="/signup">
-          <Button size="lg" className="bg-[#4A6FA5] text-lg px-8 py-4 h-auto">
+          <Button size="lg" className="bg-[#F5A623] hover:bg-[#F5A623]/90 text-white text-lg px-8 py-4 h-auto">
             {t('landing_cta_free')}
           </Button>
         </Link>
@@ -85,24 +92,31 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
-              icon: <Music className="h-8 w-8 text-[#4A6FA5]" />,
+              icon: <Music className="h-8 w-8 text-white" />,
+              bg:   'bg-[#F5A623]',
               title: t('landing_step1_title'),
               desc:  t('landing_step1_desc'),
             },
             {
-              icon: <Upload className="h-8 w-8 text-[#4A6FA5]" />,
+              icon: <Upload className="h-8 w-8 text-white" />,
+              bg:   'bg-[#7BA05B]',
               title: t('landing_step2_title'),
               desc:  t('landing_step2_desc'),
             },
             {
-              icon: <Play className="h-8 w-8 text-[#4A6FA5]" />,
+              icon: <Play className="h-8 w-8 text-white" />,
+              bg:   'bg-[#4A6FA5]',
               title: t('landing_step3_title'),
               desc:  t('landing_step3_desc'),
             },
           ].map((step, i) => (
-            <Card key={i} className="text-center">
+            <Card key={i} className="text-center shadow-md rounded-2xl">
               <CardContent className="p-8">
-                <div className="flex justify-center mb-4">{step.icon}</div>
+                <div className="flex justify-center mb-4">
+                  <div className={`w-16 h-16 rounded-full ${step.bg} flex items-center justify-center`}>
+                    {step.icon}
+                  </div>
+                </div>
                 <h3 className="font-bold text-lg mb-2">{step.title}</h3>
                 <p className="text-muted-foreground text-sm">{step.desc}</p>
               </CardContent>
@@ -134,7 +148,7 @@ export default function LandingPage() {
         <h2 className="text-2xl font-bold text-[#2C2C2A] mb-4">{t('landing_cta_title')}</h2>
         <p className="text-muted-foreground mb-8">{t('landing_cta_desc')}</p>
         <Link href="/signup">
-          <Button size="lg" className="bg-[#4A6FA5] text-lg px-8 py-4 h-auto">
+          <Button size="lg" className="bg-[#F5A623] hover:bg-[#F5A623]/90 text-white text-lg px-8 py-4 h-auto">
             {t('landing_create_account')}
           </Button>
         </Link>

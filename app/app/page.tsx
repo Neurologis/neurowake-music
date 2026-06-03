@@ -508,8 +508,8 @@ export default function PlayerPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('player_title')}</h1>
 
-      {/* ── Sélecteur de playlist par phase — texte ≥18px, icônes ≥28px ─── */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* ── Sélecteur de playlist par phase — ligne horizontale scrollable ── */}
+      <div className="flex overflow-x-auto gap-3 pb-1">
         {PLAYLIST_TYPES.map((type) => {
           const isActive = activePlaylist === type;
           return (
@@ -517,16 +517,16 @@ export default function PlayerPage() {
               key={type}
               onClick={() => handlePlay(type)}
               className={`
-                flex flex-col items-center justify-center gap-1
-                h-20 rounded-xl border-2 font-semibold transition-all
+                flex flex-col items-center justify-center gap-1 flex-shrink-0
+                h-20 w-24 rounded-2xl border font-semibold transition-all
                 ${isActive
-                  ? 'bg-[#4A6FA5] border-[#4A6FA5] text-white shadow-md'
-                  : 'bg-white border-[#EDEAE3] text-[#2C2C2A] hover:border-[#4A6FA5] hover:bg-[#4A6FA5]/5'
+                  ? 'bg-[#F5A623] border-[#F5A623] text-white shadow-md'
+                  : 'bg-white border-[#EDEAE3] text-[#2C2C2A] hover:border-[#F5A623] hover:bg-[#F5A623]/5'
                 }
               `}
             >
               {type === 'soins'
-                ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#4A6FA5]'}`} />
+                ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#F5A623]'}`} />
                 : type === 'matin'
                 /* eslint-disable-next-line @next/next/no-img-element */
                 ? <img src="/Matin.png" width={48} height={48} alt="Matin" />
@@ -759,9 +759,12 @@ export default function PlayerPage() {
       <div className="space-y-4">
 
         {/* Volume musique */}
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <p className="font-semibold text-base">{t('music_volume_label')}</p>
+        <Card className="shadow-md rounded-2xl">
+          <CardContent className="p-5 space-y-3">
+            <p className="font-bold text-lg flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#F5A623]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              {t('music_volume_label')}
+            </p>
             <div className="flex gap-2 flex-wrap">
               {musicVolLabels.map((labelKey, i) => (
                 <Button
@@ -775,19 +778,21 @@ export default function PlayerPage() {
                 </Button>
               ))}
             </div>
-            <Slider
-              value={[Math.round(player.musicVolume * 100)]}
-              min={20}
-              max={100}
-              step={5}
-              onValueChange={([v]) => player.setMusicVolume(v / 100)}
-            />
+            <div className="[&_[role=slider]]:bg-[#F5A623] [&_[role=slider]]:border-[#F5A623] [&_.bg-primary]:bg-[#F5A623]">
+              <Slider
+                value={[Math.round(player.musicVolume * 100)]}
+                min={20}
+                max={100}
+                step={5}
+                onValueChange={([v]) => player.setMusicVolume(v / 100)}
+              />
+            </div>
           </CardContent>
         </Card>
 
         {/* Message vocal */}
-        <Card>
-          <CardContent className="p-4 space-y-2">
+        <Card className="shadow-md rounded-2xl">
+          <CardContent className="p-5 space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-base">{t('voice_msg')}</p>
@@ -823,13 +828,15 @@ export default function PlayerPage() {
         </Card>
 
         {/* Gamma 40Hz */}
-        {/* Gamma 40Hz */}
-<Card>
-  <CardContent className="p-4 space-y-4">
+<Card className="shadow-md rounded-2xl">
+  <CardContent className="p-5 space-y-4">
     {/* Stimulation 40Hz */}
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-lg font-bold">{t('gamma_title')}</p>
+        <p className="text-lg font-bold flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#4A6FA5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.96-3 2.5 2.5 0 0 1 .92-4.97A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.96-3 2.5 2.5 0 0 0-.92-4.97A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+          {t('gamma_title')}
+        </p>
         <p className="text-sm text-muted-foreground">{t('gamma_40hz_desc_short')}</p>
       </div>
       <Switch
@@ -859,13 +866,15 @@ export default function PlayerPage() {
               </button>
             ))}
           </div>
-          <Slider
-            value={[player.gammaGain * 1000]}
-            min={20}
-            max={80}
-            step={10}
-            onValueChange={([v]) => player.setGammaGain(v / 1000)}
-          />
+          <div className="[&_[role=slider]]:bg-[#F5A623] [&_[role=slider]]:border-[#F5A623] [&_.bg-primary]:bg-[#F5A623]">
+            <Slider
+              value={[player.gammaGain * 1000]}
+              min={20}
+              max={80}
+              step={10}
+              onValueChange={([v]) => player.setGammaGain(v / 1000)}
+            />
+          </div>
         </div>
         <div className="flex gap-2">
           {(['monaural', 'am'] as GammaMode[]).map((mode) => (
@@ -873,7 +882,7 @@ export default function PlayerPage() {
               key={mode}
               size="sm"
               variant={player.gammaMode === mode ? 'default' : 'outline'}
-              className={`text-base h-auto py-2 px-3 ${player.gammaMode === mode ? 'bg-[#4A6FA5]' : ''}`}
+              className={`w-full text-base h-auto py-2 px-3 ${player.gammaMode === mode ? 'bg-[#4A6FA5]' : ''}`}
               onClick={() => player.setGammaMode(mode)}
             >
               {mode === 'monaural' ? t('gamma_monaural') : t('gamma_am')}
