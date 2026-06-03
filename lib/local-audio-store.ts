@@ -462,27 +462,78 @@ export async function getAssociatedIds(): Promise<string[]> {
 // ── Music folder management ──────────────────────────────────────────────────
 
 /**
- * Open a system directory picker, then create a "NeuroWake Music" subfolder.
- * The handle is persisted in IndexedDB for future file pickers.
- * Must be called from a user gesture. Returns the subfolder handle or null.
+ * Open a system directory picker and set up the NeuroWake Music folder.
+ * Universal implementation covering all platforms:
+ *
+ * CAS 1 — User directly selected/created "NeuroWake Music" (Android Chrome,
+ *          Samsung Internet, Safari macOS): persist the handle as-is.
+ * CAS 2 — User selected a parent folder (PC Chrome/Edge): create the
+ *          "NeuroWake Music" subfolder automatically inside it.
+ * CAS 3 — Subfolder creation failed (insufficient permissions): use the
+ *          selected folder as root directly.
+ *
+ * Must be called from a user gesture. Returns the folder handle or null.
  */
 export async function setupMusicFolder(): Promise<FileSystemDirectoryHandle | null> {
-  if (!supportsFileSystemAccess()) return null;
+  if (!supportsDirectoryPicker()) return null;
   try {
-    const parentHandle = await (window as unknown as FSAWindow).showDirectoryPicker({
+    const selectedHandle = await (window as unknown as FSAWindow).showDirectoryPicker({
       startIn: 'music',
       mode: 'readwrite',
       id: 'neurowake-parent-dir',
     });
-    const nwHandle = await parentHandle.getDirectoryHandle('NeuroWake Music', { create: true });
-    await _idbPut(STORE_DIR, 'musicFolder', nwHandle);
-    await _idbPut(STORE_DIR, 'musicFolderParentName', parentHandle.name);
-    return nwHandle;
+
+    // CAS 1 — User directly selected/created "NeuroWake Music"
+    if (selectedHandle.name === 'NeuroWake Music') {
+      await _idbPut(STORE_DIR, 'musicFolder', selectedHandle);
+      await _idbPut(STORE_DIR, 'musicFolderParentName', 'NeuroWake Music');
+      await _idbPut(STORE_DIR, 'folderSetupComplete', true);
+      return selectedHandle;
+    }
+
+    // CAS 2 — User selected a parent folder: try to create "NeuroWake Music" inside
+    try {
+      const nwHandle = await selectedHandle.getDirectoryHandle(
+        'NeuroWake Music',
+        { create: true },
+      );
+      await _idbPut(STORE_DIR, 'musicFolder', nwHandle);
+      await _idbPut(STORE_DIR, 'musicFolderParentName', selectedHandle.name);
+      await _idbPut(STORE_DIR, 'folderSetupComplete', true);
+      return nwHandle;
+    } catch {
+      // CAS 3 — Subfolder creation failed: use the selected folder as root
+      await _idbPut(STORE_DIR, 'musicFolder', selectedHandle);
+      await _idbPut(STORE_DIR, 'musicFolderParentName', selectedHandle.name);
+      await _idbPut(STORE_DIR, 'folderSetupComplete', true);
+      return selectedHandle;
+    }
   } catch (err: unknown) {
     if ((err as { name?: string })?.name === 'AbortError') return null;
     console.warn('[LocalAudioStore] setupMusicFolder error:', (err as Error)?.message);
     return null;
   }
+}
+
+/**
+ * Mark the folder setup step as complete without a directory picker.
+ * Used on iOS / Firefox where FSA is unavailable and files are stored as blobs.
+ */
+export async function markFolderSetupComplete(): Promise<void> {
+  await _idbPut(STORE_DIR, 'folderSetupComplete', true);
+}
+
+/**
+ * Returns true when the folder setup step can be considered done:
+ *  - Always true on iOS / Firefox (no FSA — blobs are stored directly).
+ *  - True if the user has previously called setupMusicFolder() or markFolderSetupComplete().
+ *  - True if a music folder handle is present in IndexedDB.
+ */
+export async function isFolderSetupComplete(): Promise<boolean> {
+  if (!supportsDirectoryPicker()) return true; // iOS, Firefox → always OK
+  const complete = await _idbGet<boolean>(STORE_DIR, 'folderSetupComplete');
+  if (complete === true) return true;
+  return hasMusicFolder();
 }
 
 export async function getMusicFolderParentName(): Promise<string | null> {
