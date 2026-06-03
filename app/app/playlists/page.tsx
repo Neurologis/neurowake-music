@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -159,7 +159,7 @@ export default function PlaylistsPage() {
       ) : (
         <div className="space-y-3">
           {playlists.map(pl => (
-            <Card key={pl.id} className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
+            <Card key={pl.id} className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200 hover:-translate-y-0.5 transition-all duration-200">
               <CardContent className="p-4 space-y-3">
 
                 {/* En-tête playlist */}
@@ -246,7 +246,7 @@ export default function PlaylistsPage() {
       )}
 
       {/* ── Créer une playlist ────────────────────────────────────────────── */}
-      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+      <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
         <CardContent className="p-4">
           <p className="font-semibold text-base mb-3">{t('pl_create')}</p>
           <div className="flex gap-2">

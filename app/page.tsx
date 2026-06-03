@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect } from 'react';
 import { useT } from '@/hooks/use-t';
 import { storeLangue, getStoredLangue, type Langue } from '@/lib/i18n';
@@ -65,21 +65,35 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <h1
-          className="text-4xl lg:text-5xl font-bold text-[#2C2C2A] leading-tight mb-3"
-          dangerouslySetInnerHTML={{
-            __html: t('landing_hero_title').replace(
-              /vraiment|realmente|truly/gi,
-              (m) => `<span style="color:#F5A623">${m}</span>`,
-            ),
-          }}
-        />
+        {/* Badge */}
+        <div className="inline-block mb-6">
+          <span className="bg-[#F7F5F0] border border-[#E8E4DC] rounded-full px-4 py-2 text-sm font-medium text-[#2C2C2A]">
+            Pour les aidants et leurs proches
+          </span>
+        </div>
+
+        <h1 className="text-5xl font-black tracking-tight text-[#2C2C2A] leading-tight mb-3">
+          {(() => {
+            const title = t('landing_hero_title');
+            const m = title.match(/^(.*?)(vraiment|realmente|truly)(.*)$/i);
+            if (!m) return title;
+            return (
+              <>
+                {m[1]}
+                <span className="bg-gradient-to-r from-[#F5A623] to-[#7BA05B] bg-clip-text text-transparent">
+                  {m[2]}
+                </span>
+                {m[3]}
+              </>
+            );
+          })()}
+        </h1>
         <p className="text-lg font-semibold text-[#F5A623] mb-4">Choisissez le moment de la journée</p>
-        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+        <p className="text-xl text-gray-600 font-light leading-relaxed mb-8 max-w-2xl mx-auto">
           {t('landing_hero_desc')}
         </p>
         <Link href="/signup">
-          <Button size="lg" className="bg-[#F5A623] hover:bg-[#F5A623]/90 text-white text-lg px-8 py-4 h-auto">
+          <Button size="lg" className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white rounded-full px-10 py-4 text-lg font-semibold h-auto hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
             {t('landing_cta_free')}
           </Button>
         </Link>
@@ -110,7 +124,7 @@ export default function LandingPage() {
               desc:  t('landing_step3_desc'),
             },
           ].map((step, i) => (
-            <Card key={i} className="text-center bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-1 transition-all duration-200">
+            <Card key={i} className="text-center bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
               <CardContent className="p-8">
                 <div className="flex justify-center mb-4">
                   <div className={`w-16 h-16 rounded-full ${step.bg} flex items-center justify-center shadow-md`}>
@@ -148,7 +162,7 @@ export default function LandingPage() {
         <h2 className="text-2xl font-bold text-[#2C2C2A] mb-4">{t('landing_cta_title')}</h2>
         <p className="text-muted-foreground mb-8">{t('landing_cta_desc')}</p>
         <Link href="/signup">
-          <Button size="lg" className="bg-[#F5A623] hover:bg-[#F5A623]/90 text-white text-lg px-8 py-4 h-auto">
+          <Button size="lg" className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white rounded-full px-10 py-4 text-lg font-semibold h-auto hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
             {t('landing_create_account')}
           </Button>
         </Link>

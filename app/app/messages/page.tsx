@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -360,7 +360,7 @@ export default function MessagesPage() {
 
       {/* ── Créer un message ──────────────────────────────────────────────── */}
       {voixStatus.status === 'ready' && messages.length < 20 && (
-        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+        <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
           <CardHeader><CardTitle className="text-lg">{t('create_message_title')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -409,7 +409,7 @@ export default function MessagesPage() {
       ) : (
         <div className="space-y-3">
           {messages.map((msg) => (
-            <Card key={msg.id} className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
+            <Card key={msg.id} className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200 hover:-translate-y-0.5 transition-all duration-200">
               <CardContent className="p-4 space-y-3">
 
                 {/* En-tête */}

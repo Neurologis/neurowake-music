@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -328,7 +328,7 @@ export default function DecouvertePage() {
     const phase = titre.phase_recommandee ? PHASE_CONFIG[titre.phase_recommandee] : null;
 
     return (
-      <Card className={`bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border transition-all duration-200 hover:-translate-y-0.5 ${isImporte ? 'border-[#7BA05B]/50' : 'border-white/50'}`}>
+      <Card className={`bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${isImporte ? 'border-[#7BA05B]/50' : 'border-white/50'}`}>
         <CardContent className="p-4">
           <div className="flex gap-4">
             {titre.pochette_url ? (

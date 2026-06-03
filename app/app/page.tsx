@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -556,7 +556,7 @@ export default function PlayerPage() {
       </div>
 
       {/* ── Mes playlists ────────────────────────────────────────────────── */}
-      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+      <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -709,10 +709,10 @@ export default function PlayerPage() {
               <button
                 key={rate}
                 onClick={() => player.setPlaybackRate(rate)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
                   player.playbackRate === rate
-                    ? 'bg-[#4A6FA5] text-white border-[#4A6FA5]'
-                    : 'bg-white text-[#2C2C2A] border-[#EDEAE3] hover:border-[#4A6FA5]'
+                    ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white border-transparent shadow-md'
+                    : 'bg-white border-gray-200 text-[#2C2C2A] shadow-sm'
                 }`}
               >
                 {rate}×
@@ -724,7 +724,7 @@ export default function PlayerPage() {
 
       {/* ── Liste des pistes ─────────────────────────────────────────────── */}
       {player.tracks.length > 0 && (
-        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+        <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
           <CardContent className="p-3">
             <p className="text-sm font-semibold text-muted-foreground uppercase mb-2 px-1">
               {t(PHASE_FULL_KEYS[activePlaylist])} · {player.tracks.length} {player.tracks.length > 1 ? 'titres' : 'titre'}
@@ -773,7 +773,7 @@ export default function PlayerPage() {
       <div className="space-y-4">
 
         {/* Volume musique */}
-        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+        <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
           <CardContent className="p-5 space-y-3">
             <p className="font-bold text-lg flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#F5A623]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
@@ -784,15 +784,18 @@ export default function PlayerPage() {
                 <Button
                   key={labelKey}
                   size="sm"
-                  variant={getMusicVolLevel() === i ? 'default' : 'outline'}
-                  className={`text-base px-4 py-2 h-auto ${getMusicVolLevel() === i ? 'bg-[#4A6FA5]' : ''}`}
+                  className={`text-base px-4 py-2 h-auto transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
+                    getMusicVolLevel() === i
+                      ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white border-transparent shadow-md'
+                      : 'bg-white border border-gray-200 text-[#2C2C2A] shadow-sm'
+                  }`}
                   onClick={() => player.setMusicVolume(musicVolValues[i])}
                 >
                   {t(labelKey)}
                 </Button>
               ))}
             </div>
-            <div className="[&_[role=slider]]:bg-[#F5A623] [&_[role=slider]]:border-[#F5A623] [&_.bg-primary]:bg-[#F5A623]">
+            <div className="[&_[role=slider]]:bg-[#F5A623] [&_[role=slider]]:border-[#F5A623] [&_[role=slider]]:shadow-md [&_[role=slider]]:hover:scale-110 [&_[role=slider]]:transition-transform [&_.bg-primary]:bg-[#F5A623] [&_.bg-secondary]:bg-gray-200">
               <Slider
                 value={[Math.round(player.musicVolume * 100)]}
                 min={20}
@@ -805,7 +808,7 @@ export default function PlayerPage() {
         </Card>
 
         {/* Message vocal */}
-        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+        <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
           <CardContent className="p-5 space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -842,7 +845,7 @@ export default function PlayerPage() {
         </Card>
 
         {/* Gamma 40Hz */}
-<Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+<Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
   <CardContent className="p-5 space-y-4">
     {/* Stimulation 40Hz */}
     <div className="flex items-center justify-between">
@@ -873,14 +876,14 @@ export default function PlayerPage() {
             {gammaLabelKeys.map((labelKey, i) => (
               <button
                 key={labelKey}
-                className={`text-base px-2 py-0.5 rounded ${getGammaLevel() === i ? 'text-[#4A6FA5] font-semibold bg-[#4A6FA5]/10' : 'text-muted-foreground'}`}
+                className={`text-base px-2 py-0.5 rounded transition-all duration-200 hover:-translate-y-0.5 ${getGammaLevel() === i ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white font-semibold shadow-sm' : 'text-muted-foreground bg-white border border-gray-200'}`}
                 onClick={() => player.setGammaGain(gammaValues[i])}
               >
                 {t(labelKey)}
               </button>
             ))}
           </div>
-          <div className="[&_[role=slider]]:bg-[#F5A623] [&_[role=slider]]:border-[#F5A623] [&_.bg-primary]:bg-[#F5A623]">
+          <div className="[&_[role=slider]]:bg-[#F5A623] [&_[role=slider]]:border-[#F5A623] [&_[role=slider]]:shadow-md [&_[role=slider]]:hover:scale-110 [&_[role=slider]]:transition-transform [&_.bg-primary]:bg-[#F5A623] [&_.bg-secondary]:bg-gray-200">
             <Slider
               value={[player.gammaGain * 1000]}
               min={20}
@@ -896,7 +899,11 @@ export default function PlayerPage() {
               key={mode}
               size="sm"
               variant={player.gammaMode === mode ? 'default' : 'outline'}
-              className={`w-full text-base h-auto py-2 px-3 ${player.gammaMode === mode ? 'bg-[#4A6FA5]' : ''}`}
+              className={`w-full text-base h-auto py-2 px-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
+                player.gammaMode === mode
+                  ? 'bg-gradient-to-r from-[#4A6FA5] to-[#6B8EC9] text-white border-transparent shadow-md'
+                  : 'bg-white border border-gray-200 text-[#2C2C2A] shadow-sm'
+              }`}
               onClick={() => player.setGammaMode(mode)}
             >
               {mode === 'monaural' ? t('gamma_monaural') : t('gamma_am')}

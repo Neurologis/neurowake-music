@@ -38,7 +38,16 @@
       "Bash(git commit -m 'Fix: descriptions réminiscence — fallback progressif 42703 + correction affichage et sauvegarde *)",
       "Bash(node scripts/test-gen-descriptions.cjs)",
       "Bash(git commit -m 'Fix: affichage descriptions réminiscence — diagnostic et correction complète *)",
-      "Bash(git commit -m 'Fix: génération titres découverte — correction boucle vide après onboarding *)"
+      "Bash(git commit -m 'Fix: génération titres découverte — correction boucle vide après onboarding *)",
+      "Bash(git commit -m 'Feature: système messages v2 — affectation par titre/phase + UX guidée *)",
+      "Bash(git commit -m 'Fix: erreur affectation messages — correction route affecter *)",
+      "Bash(git commit -m 'Feature: messages v2 — suppression téléchargement + messages modifiables + page playlists + lecteur messages *)",
+      "Bash(git commit -m 'Fix: lecture messages affectés dans le lecteur — injection début/fin titre et playlist *)",
+      "Bash(git commit -m 'Fix: diagnostic et correction lecture messages affectés *)",
+      "Bash(git commit -m 'Feature: disclaimer médical + footer copyright Neurologis page accueil *)",
+      "Bash(git commit -m 'Fix: disclaimer déplacé dans footer + copyright Neurologis agrandi *)",
+      "Bash(findstr /i \"error warn failed success\")",
+      "Bash(git commit *)"
     ]
   }
 }

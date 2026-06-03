@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -385,7 +385,7 @@ export default function TitresPage() {
       )}
 
       {/* ── Bannière dossier NeuroWake Music ───────────────────────────────── */}
-      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
+      <Card className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200">
         <CardContent className="p-5 space-y-4">
 
           <div className="flex items-center gap-3">
@@ -661,7 +661,7 @@ export default function TitresPage() {
           {titres.map((titre) => {
             const status = fileStatus[titre.id] ?? 'checking';
             return (
-              <Card key={titre.id} className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
+              <Card key={titre.id} className="bg-white/90 backdrop-blur-sm shadow-md rounded-2xl border border-white/60 hover:-translate-y-1 transition-all duration-200 hover:-translate-y-0.5 transition-all duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
                     {/* Status icon */}
