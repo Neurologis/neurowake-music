@@ -47,7 +47,8 @@
       "Bash(git commit -m 'Feature: disclaimer médical + footer copyright Neurologis page accueil *)",
       "Bash(git commit -m 'Fix: disclaimer déplacé dans footer + copyright Neurologis agrandi *)",
       "Bash(findstr /i \"error warn failed success\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\jeanc\\\\Desktop\\\\Dossiers\\\\BLOG BL ALZHEIMER\\\\Projet Musiques Autobiograpiques IA\\\\Code Neuro Wake Music\\\\app\\\\api\\\\admin\\\\sessions\\\\[id]\" && echo done)"
     ]
   }
 }

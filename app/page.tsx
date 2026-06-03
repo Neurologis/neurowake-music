@@ -97,7 +97,14 @@ export default function LandingPage() {
             {t('landing_cta_free')}
           </Button>
         </Link>
-        <p className="text-sm text-muted-foreground mt-3">{t('landing_no_card')}</p>
+        <div className="mt-3 flex flex-col items-center gap-2">
+          <p className="text-sm text-muted-foreground">{t('landing_no_card')}</p>
+          <Link href="/session">
+            <button className="text-sm text-[#4A6FA5] border border-[#4A6FA5]/30 rounded-full px-5 py-2 hover:bg-[#4A6FA5]/5 hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2">
+              🎵 Rejoindre une session collective
+            </button>
+          </Link>
+        </div>
       </section>
 
       {/* 3 étapes */}
