@@ -570,7 +570,7 @@ export default function TitresPage() {
 
       {/* ── Zone ajout par glisser-déposer ──────────────────────────────────── */}
       <div
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors min-h-[120px] flex flex-col items-center justify-center ${
           dragOver ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' : 'border-[#EDEAE3] hover:border-[#4A6FA5]'
         }`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -694,14 +694,13 @@ export default function TitresPage() {
                       </div>
 
                       {/* ── File association buttons ─────────────────────── */}
-                      <div className="mt-3 flex flex-wrap gap-2 items-center">
+                      <div className="mt-3 flex flex-col gap-2">
 
                         {/* MISSING — bouton principal bien visible */}
                         {status === 'missing' && (
                           <>
                             <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-base h-10 hover:-translate-y-0.5 transition-all"
+                              className="w-full bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-base h-12 hover:-translate-y-0.5 transition-all"
                               onClick={() => associerFichier(titre.id)}
                               disabled={associating === titre.id}
                             >
@@ -712,7 +711,7 @@ export default function TitresPage() {
                             </Button>
                             <button
                               onClick={() => setPurchaseDialogOpen(true)}
-                              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-[#4A6FA5]"
+                              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-[#4A6FA5] min-h-[44px] justify-center"
                             >
                               <ShoppingCart className="h-4 w-4" />
                               {t('i_bought_itunes')}
@@ -723,9 +722,8 @@ export default function TitresPage() {
                         {/* PENDING — ré-association */}
                         {status === 'pending' && (
                           <Button
-                            size="sm"
                             variant="outline"
-                            className="border-amber-500 text-amber-600 hover:bg-amber-50 text-base h-10"
+                            className="w-full border-amber-500 text-amber-600 hover:bg-amber-50 text-base h-12"
                             onClick={() => reautoriserFichier(titre.id)}
                             disabled={associating === titre.id}
                           >
@@ -739,9 +737,8 @@ export default function TitresPage() {
                         {/* OK — remplacement discret */}
                         {status === 'ok' && (
                           <Button
-                            size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:text-[#4A6FA5] text-sm"
+                            className="w-full text-muted-foreground hover:text-[#4A6FA5] text-sm h-10"
                             onClick={() => associerFichier(titre.id)}
                             disabled={associating === titre.id}
                           >

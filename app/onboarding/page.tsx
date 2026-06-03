@@ -375,7 +375,7 @@ export default function OnboardingPage() {
 
         {/* PHASE CHAT */}
         {phase === 'chat' && (
-          <div className="flex flex-col h-[calc(100vh-160px)]">
+          <div className="flex flex-col h-[50vh] sm:h-[calc(100vh-160px)]">
             <div className="flex-1 overflow-y-auto space-y-4 py-4">
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -414,9 +414,10 @@ export default function OnboardingPage() {
                   }}
                   placeholder="Votre réponse..."
                   disabled={isTyping}
+                  className="h-14 text-base flex-1"
                 />
-                <Button onClick={sendMessage} disabled={isTyping || !input.trim()} size="icon">
-                  <Send className="h-4 w-4" />
+                <Button onClick={sendMessage} disabled={isTyping || !input.trim()} className="h-14 w-14 flex-shrink-0">
+                  <Send className="h-5 w-5" />
                 </Button>
               </div>
               {/* Safety-net button: shown after 8+ messages so the user can

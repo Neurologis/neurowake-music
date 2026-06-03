@@ -508,31 +508,31 @@ export default function PlayerPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('player_title')}</h1>
 
-      {/* ── Sélecteur de playlist par phase — ligne horizontale scrollable ── */}
-      <div className="flex overflow-x-auto gap-3 pb-1">
+      {/* ── Sélecteur de playlist par phase — grille 3 colonnes mobile, 6 desktop ── */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
         {PLAYLIST_TYPES.map((type) => {
           const isActive = activePlaylist === type;
 
           const phaseIcon = type === 'matin' ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#F5A623]'}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-7 w-7 ${isActive ? 'text-white' : 'text-[#F5A623]'}`}>
               <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
             </svg>
           ) : type === 'soins' ? (
-            <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#E85D8A]'}`} />
+            <Heart className={`h-7 w-7 ${isActive ? 'text-white' : 'text-[#E85D8A]'}`} />
           ) : type === 'repas' ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#7BA05B]'}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-7 w-7 ${isActive ? 'text-white' : 'text-[#7BA05B]'}`}>
               <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
             </svg>
           ) : type === 'apres-midi' ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#6B8EC9]'}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-7 w-7 ${isActive ? 'text-white' : 'text-[#6B8EC9]'}`}>
               <path d="M17.5 19H9a7 7 0 116.71-9h1.79a4.5 4.5 0 110 9z"/>
             </svg>
           ) : type === 'coucher' ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#7B6BB5]'}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-7 w-7 ${isActive ? 'text-white' : 'text-[#7B6BB5]'}`}>
               <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
             </svg>
           ) : (
-            <Star className={`h-8 w-8 fill-current ${isActive ? 'text-white' : 'text-[#F5A623]'}`} />
+            <Star className={`h-7 w-7 fill-current ${isActive ? 'text-white' : 'text-[#F5A623]'}`} />
           );
 
           return (
@@ -540,8 +540,8 @@ export default function PlayerPage() {
               key={type}
               onClick={() => handlePlay(type)}
               className={`
-                flex flex-col items-center justify-center gap-1 flex-shrink-0
-                h-20 w-24 rounded-2xl border font-semibold transition-all duration-200
+                flex flex-col items-center justify-center gap-1
+                h-20 rounded-2xl border font-semibold transition-all duration-200
                 ${isActive
                   ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] border-transparent text-white shadow-xl'
                   : 'bg-white border-[#EDEAE3] text-[#2C2C2A] shadow-md hover:-translate-y-1 hover:shadow-lg'
@@ -549,7 +549,7 @@ export default function PlayerPage() {
               `}
             >
               {phaseIcon}
-              <span className="text-[13px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
+              <span className="text-sm font-semibold leading-tight">{t(PHASE_TEXT_KEYS[type])}</span>
             </button>
           );
         })}
@@ -655,7 +655,7 @@ export default function PlayerPage() {
                 handlePlay(activePlaylist);
               }
             }}
-            className={`w-28 h-28 rounded-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 flex items-center justify-center transition-all shadow-lg ${player.isPlaying ? 'player-pulse' : ''}`}
+            className={`w-24 h-24 lg:w-28 lg:h-28 rounded-full bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 flex items-center justify-center transition-all shadow-lg ${player.isPlaying ? 'player-pulse' : ''}`}
           >
             {player.isPlaying
               ? <Pause className="h-12 w-12 text-white" />
@@ -704,12 +704,12 @@ export default function PlayerPage() {
         {/* Vitesse de lecture */}
         <div className="flex flex-col items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">{t('speed_label')}</span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {SPEED_OPTIONS.map((rate) => (
               <button
                 key={rate}
                 onClick={() => player.setPlaybackRate(rate)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
+                className={`min-w-[60px] h-12 px-3 rounded-lg text-base font-semibold border transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
                   player.playbackRate === rate
                     ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white border-transparent shadow-md'
                     : 'bg-white border-gray-200 text-[#2C2C2A] shadow-sm'
@@ -783,8 +783,7 @@ export default function PlayerPage() {
               {musicVolLabels.map((labelKey, i) => (
                 <Button
                   key={labelKey}
-                  size="sm"
-                  className={`text-base px-4 py-2 h-auto transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
+                  className={`flex-1 text-base h-12 transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
                     getMusicVolLevel() === i
                       ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white border-transparent shadow-md'
                       : 'bg-white border border-gray-200 text-[#2C2C2A] shadow-sm'
@@ -899,7 +898,7 @@ export default function PlayerPage() {
               key={mode}
               size="sm"
               variant={player.gammaMode === mode ? 'default' : 'outline'}
-              className={`w-full text-base h-auto py-2 px-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
+              className={`w-full text-base h-12 px-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
                 player.gammaMode === mode
                   ? 'bg-gradient-to-r from-[#4A6FA5] to-[#6B8EC9] text-white border-transparent shadow-md'
                   : 'bg-white border border-gray-200 text-[#2C2C2A] shadow-sm'

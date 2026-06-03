@@ -519,16 +519,16 @@ export default function MessagesPage() {
 
                 {/* Actions (masquées en mode édition) */}
                 {editingId !== msg.id && (
-                  <div className="flex gap-2 flex-wrap pt-1">
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
                     <Button
-                      size="sm" variant="outline" className="text-sm"
+                      variant="outline" className="w-full sm:w-auto h-12 text-base"
                       onClick={() => startEdit(msg)}
                     >
-                      <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                      <Pencil className="h-4 w-4 mr-2" />
                       Modifier
                     </Button>
                     <Button
-                      size="sm" className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-sm hover:-translate-y-0.5 transition-all"
+                      className="w-full sm:w-auto h-12 text-base bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white hover:-translate-y-0.5 transition-all"
                       onClick={() => openModal(msg.id)}
                     >
                       <Pin className="h-3.5 w-3.5 mr-1.5" />
@@ -549,7 +549,7 @@ export default function MessagesPage() {
           className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
           onClick={e => { if (e.target === e.currentTarget) setModalMsgId(null); }}
         >
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-xl">
+          <div className="bg-white rounded-2xl w-full max-w-md mx-4 sm:mx-0 p-5 space-y-5 shadow-xl">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#2C2C2A]">Où diffuser ce message ?</h2>
               <button onClick={() => setModalMsgId(null)} className="text-muted-foreground hover:text-[#2C2C2A]">
@@ -619,8 +619,8 @@ export default function MessagesPage() {
             </div>
 
             <div className="flex gap-3 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setModalMsgId(null)}>{t('cancel')}</Button>
-              <Button className="flex-1 bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white" onClick={saveAffectation}
+              <Button variant="outline" className="flex-1 h-12 text-base" onClick={() => setModalMsgId(null)}>{t('cancel')}</Button>
+              <Button className="flex-1 h-12 text-base bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white" onClick={saveAffectation}
                 disabled={savingAffectation || (modalType === 'titre_specifique' && !modalTitreId)}>
                 {savingAffectation ? t('saving_label') : '✅ Confirmer l\'affectation'}
               </Button>

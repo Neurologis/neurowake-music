@@ -357,32 +357,28 @@ export default function DecouvertePage() {
               </div>
 
               {!isImporte && (
-                <div className="flex gap-2 mt-3 flex-wrap">
+                <div className="flex flex-col gap-2 mt-3">
                   <Button
-                    size="sm"
-                    className={titre.statut === 'valide'
+                    className={`w-full h-12 text-base ${titre.statut === 'valide'
                       ? 'bg-gradient-to-r from-[#7BA05B] to-[#5d8a3e] text-white shadow-md hover:-translate-y-0.5 transition-all'
-                      : 'border border-[#7BA05B] text-[#7BA05B] bg-white hover:bg-green-50 hover:-translate-y-0.5 transition-all'}
+                      : 'border border-[#7BA05B] text-[#7BA05B] bg-white hover:bg-green-50 hover:-translate-y-0.5 transition-all'}`}
                     onClick={() => valider(titre.id, 'valide')}
                   >
-                    <Check className="h-4 w-4 mr-1" /> Il aimait
+                    <Check className="h-5 w-5 mr-2" /> Il aimait
                   </Button>
                   <Button
-                    size="sm"
-                    className={titre.statut === 'refuse'
+                    className={`w-full h-12 text-base ${titre.statut === 'refuse'
                       ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md hover:-translate-y-0.5 transition-all'
-                      : 'border border-destructive text-destructive bg-white hover:bg-red-50 hover:-translate-y-0.5 transition-all'}
+                      : 'border border-destructive text-destructive bg-white hover:bg-red-50 hover:-translate-y-0.5 transition-all'}`}
                     onClick={() => valider(titre.id, 'refuse')}
                   >
-                    <X className="h-4 w-4 mr-1" /> Pas vraiment
+                    <X className="h-5 w-5 mr-2" /> Pas vraiment
                   </Button>
                   <Button
-                    size="sm"
-                    variant={titre.statut === 'incertain' ? 'default' : 'outline'}
-                    className={titre.statut === 'incertain' ? 'bg-gray-400 hover:bg-gray-400/80 text-white' : ''}
+                    className={`w-full h-12 text-base ${titre.statut === 'incertain' ? 'bg-gray-400 hover:bg-gray-400/80 text-white' : 'border border-gray-300 text-gray-600 bg-white'}`}
                     onClick={() => valider(titre.id, 'incertain')}
                   >
-                    <HelpCircle className="h-4 w-4 mr-1" /> Je ne sais pas
+                    <HelpCircle className="h-5 w-5 mr-2" /> Je ne sais pas
                   </Button>
                 </div>
               )}
