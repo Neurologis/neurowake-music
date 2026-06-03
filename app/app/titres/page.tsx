@@ -385,7 +385,7 @@ export default function TitresPage() {
       )}
 
       {/* ── Bannière dossier NeuroWake Music ───────────────────────────────── */}
-      <Card className="bg-[#4A6FA5]/5 border-[#4A6FA5]/30">
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardContent className="p-5 space-y-4">
 
           <div className="flex items-center gap-3">
@@ -600,7 +600,7 @@ export default function TitresPage() {
 
       {/* ── Formulaire confirmation nouveau titre ────────────────────────────── */}
       {pendingAdd && (
-        <Card className="border-[#4A6FA5] bg-[#4A6FA5]/5">
+        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-[#F5A623]/40">
           <CardContent className="p-4 space-y-3">
             <p className="text-base font-semibold text-[#4A6FA5]">{t('new_titre_header')}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -638,7 +638,7 @@ export default function TitresPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button onClick={confirmNewTitre} disabled={savingNew || !pendingAdd.titre.trim()} className="bg-[#4A6FA5] text-base h-11">
+              <Button onClick={confirmNewTitre} disabled={savingNew || !pendingAdd.titre.trim()} className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-base h-11 hover:-translate-y-0.5 transition-all">
                 {savingNew ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('saving_label')}</> : t('confirm_btn')}
               </Button>
               <Button variant="outline" onClick={() => setPendingAdd(null)} className="text-base h-11">{t('cancel')}</Button>
@@ -661,7 +661,7 @@ export default function TitresPage() {
           {titres.map((titre) => {
             const status = fileStatus[titre.id] ?? 'checking';
             return (
-              <Card key={titre.id}>
+              <Card key={titre.id} className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
                     {/* Status icon */}
@@ -701,7 +701,7 @@ export default function TitresPage() {
                           <>
                             <Button
                               size="sm"
-                              className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 text-white text-base h-10"
+                              className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-base h-10 hover:-translate-y-0.5 transition-all"
                               onClick={() => associerFichier(titre.id)}
                               disabled={associating === titre.id}
                             >

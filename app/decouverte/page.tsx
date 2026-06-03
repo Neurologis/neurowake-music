@@ -328,7 +328,7 @@ export default function DecouvertePage() {
     const phase = titre.phase_recommandee ? PHASE_CONFIG[titre.phase_recommandee] : null;
 
     return (
-      <Card className={isImporte ? 'border-[#7BA05B] bg-green-50' : ''}>
+      <Card className={`bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border transition-all duration-200 hover:-translate-y-0.5 ${isImporte ? 'border-[#7BA05B]/50' : 'border-white/50'}`}>
         <CardContent className="p-4">
           <div className="flex gap-4">
             {titre.pochette_url ? (
@@ -360,20 +360,18 @@ export default function DecouvertePage() {
                 <div className="flex gap-2 mt-3 flex-wrap">
                   <Button
                     size="sm"
-                    variant={titre.statut === 'valide' ? 'default' : 'outline'}
                     className={titre.statut === 'valide'
-                      ? 'bg-[#7BA05B] hover:bg-[#7BA05B]/80 text-white border-[#7BA05B]'
-                      : 'border-[#7BA05B] text-[#7BA05B] hover:bg-green-50'}
+                      ? 'bg-gradient-to-r from-[#7BA05B] to-[#5d8a3e] text-white shadow-md hover:-translate-y-0.5 transition-all'
+                      : 'border border-[#7BA05B] text-[#7BA05B] bg-white hover:bg-green-50 hover:-translate-y-0.5 transition-all'}
                     onClick={() => valider(titre.id, 'valide')}
                   >
                     <Check className="h-4 w-4 mr-1" /> Il aimait
                   </Button>
                   <Button
                     size="sm"
-                    variant={titre.statut === 'refuse' ? 'default' : 'outline'}
                     className={titre.statut === 'refuse'
-                      ? 'bg-destructive hover:bg-destructive/80 text-white border-destructive'
-                      : 'border-destructive text-destructive hover:bg-red-50'}
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md hover:-translate-y-0.5 transition-all'
+                      : 'border border-destructive text-destructive bg-white hover:bg-red-50 hover:-translate-y-0.5 transition-all'}
                     onClick={() => valider(titre.id, 'refuse')}
                   >
                     <X className="h-4 w-4 mr-1" /> Pas vraiment
@@ -394,7 +392,7 @@ export default function DecouvertePage() {
                   {/* Associate local file */}
                   <Button
                     size="sm"
-                    className="bg-[#4A6FA5] hover:bg-[#4A6FA5]/90 w-full justify-start"
+                    className="bg-gradient-to-r from-[#4A6FA5] to-[#6B8EC9] text-white w-full justify-start hover:-translate-y-0.5 transition-all"
                     onClick={() => importerFichier(titre)}
                     disabled={uploading === titre.id}
                   >
@@ -517,7 +515,7 @@ export default function DecouvertePage() {
                   const dejaAjoute = allTitres.some((x) => x.titre === t.titre && x.artiste === t.artiste);
                   const isPreviewLoading = loadingPreview && titrePreview?.titre === t.titre && titrePreview?.artiste === t.artiste;
                   return (
-                    <Card key={t.id ?? t.titre} className="hover:shadow-sm transition-shadow">
+                    <Card key={t.id ?? t.titre} className="bg-white/80 backdrop-blur-sm shadow-md rounded-xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
                       <CardContent className="p-3">
                         <div className="flex items-center gap-3">
                           {t.pochette_url ? (

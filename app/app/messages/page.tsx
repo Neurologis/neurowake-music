@@ -315,7 +315,7 @@ export default function MessagesPage() {
 
       {/* ── Enregistrement de voix ─────────────────────────────────────────── */}
       {(!voixStatus.hasVoice || voixStatus.status !== 'ready') ? (
-        <Card className="border-[#4A6FA5] bg-[#4A6FA5]/5">
+        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-[#4A6FA5]/30">
           <CardHeader>
             <CardTitle className="text-[#4A6FA5] text-lg">{t('record_voice_title')}</CardTitle>
           </CardHeader>
@@ -360,7 +360,7 @@ export default function MessagesPage() {
 
       {/* ── Créer un message ──────────────────────────────────────────────── */}
       {voixStatus.status === 'ready' && messages.length < 20 && (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
           <CardHeader><CardTitle className="text-lg">{t('create_message_title')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -394,7 +394,7 @@ export default function MessagesPage() {
                 className="text-base"
               />
             </div>
-            <Button onClick={genererMessage} disabled={generating} className="w-full bg-[#4A6FA5] text-base h-11">
+            <Button onClick={genererMessage} disabled={generating} className="w-full bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-base h-11 hover:-translate-y-0.5 transition-all">
               {generating ? t('generating_label') : t('save_message_btn')}
             </Button>
           </CardContent>
@@ -409,7 +409,7 @@ export default function MessagesPage() {
       ) : (
         <div className="space-y-3">
           {messages.map((msg) => (
-            <Card key={msg.id}>
+            <Card key={msg.id} className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
               <CardContent className="p-4 space-y-3">
 
                 {/* En-tête */}
@@ -528,7 +528,7 @@ export default function MessagesPage() {
                       Modifier
                     </Button>
                     <Button
-                      size="sm" className="bg-[#4A6FA5] text-white text-sm"
+                      size="sm" className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-sm hover:-translate-y-0.5 transition-all"
                       onClick={() => openModal(msg.id)}
                     >
                       <Pin className="h-3.5 w-3.5 mr-1.5" />
@@ -620,7 +620,7 @@ export default function MessagesPage() {
 
             <div className="flex gap-3 pt-1">
               <Button variant="outline" className="flex-1" onClick={() => setModalMsgId(null)}>{t('cancel')}</Button>
-              <Button className="flex-1 bg-[#4A6FA5] text-white" onClick={saveAffectation}
+              <Button className="flex-1 bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white" onClick={saveAffectation}
                 disabled={savingAffectation || (modalType === 'titre_specifique' && !modalTitreId)}>
                 {savingAffectation ? t('saving_label') : '✅ Confirmer l\'affectation'}
               </Button>

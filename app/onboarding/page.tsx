@@ -291,9 +291,9 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F5F0] flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-[#FFF8EE] via-[#F7F5F0] to-[#EEF2F9] flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3">
+      <div className="bg-white/80 backdrop-blur-sm border-b px-4 py-3">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-lg font-semibold text-[#2C2C2A]">Créons le profil musical</h1>
@@ -309,7 +309,7 @@ export default function OnboardingPage() {
 
         {/* PHASE FORM */}
         {phase === 'form' && (
-          <Card className="mt-6">
+          <Card className="mt-6 bg-white/80 backdrop-blur-sm shadow-xl rounded-2xl border border-white/50">
             <CardContent className="p-6 space-y-6">
               <div>
                 <Label>Prénom du proche (optionnel)</Label>
@@ -366,7 +366,7 @@ export default function OnboardingPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleFormNext} className="w-full" size="lg">
+              <Button onClick={handleFormNext} className="w-full bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white hover:-translate-y-0.5 transition-all shadow-md" size="lg">
                 Continuer →
               </Button>
             </CardContent>
@@ -381,8 +381,8 @@ export default function OnboardingPage() {
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
                     m.role === 'user'
-                      ? 'bg-[#4A6FA5] text-white rounded-br-sm'
-                      : 'bg-white border rounded-bl-sm text-[#2C2C2A]'
+                      ? 'bg-gradient-to-r from-[#4A6FA5] to-[#6B8EC9] text-white rounded-br-sm shadow-md'
+                      : 'bg-white/80 backdrop-blur-sm border border-white/50 rounded-bl-sm text-[#2C2C2A] shadow-md'
                   }`}>
                     {m.content}
                   </div>
@@ -435,7 +435,7 @@ export default function OnboardingPage() {
 
         {/* PHASE SUMMARY */}
         {phase === 'summary' && (
-          <Card className="mt-6">
+          <Card className="mt-6 bg-white/80 backdrop-blur-sm shadow-xl rounded-2xl border border-white/50">
             <CardContent className="p-6 space-y-4">
               <h2 className="text-xl font-semibold">Récapitulatif du profil</h2>
               {formData.prenom_proche && (
@@ -464,7 +464,7 @@ export default function OnboardingPage() {
                   <span className="font-medium text-right">{extractedData.passions.join(', ')}</span>
                 </div>
               )}
-              <Button onClick={completeOnboarding} className="w-full" size="lg">
+              <Button onClick={completeOnboarding} className="w-full bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white hover:-translate-y-0.5 transition-all shadow-md" size="lg">
                 Créer mon profil musical
               </Button>
             </CardContent>

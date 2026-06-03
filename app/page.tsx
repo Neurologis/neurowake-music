@@ -110,10 +110,10 @@ export default function LandingPage() {
               desc:  t('landing_step3_desc'),
             },
           ].map((step, i) => (
-            <Card key={i} className="text-center shadow-md rounded-2xl">
+            <Card key={i} className="text-center bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-1 transition-all duration-200">
               <CardContent className="p-8">
                 <div className="flex justify-center mb-4">
-                  <div className={`w-16 h-16 rounded-full ${step.bg} flex items-center justify-center`}>
+                  <div className={`w-16 h-16 rounded-full ${step.bg} flex items-center justify-center shadow-md`}>
                     {step.icon}
                   </div>
                 </div>

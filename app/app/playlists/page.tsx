@@ -159,7 +159,7 @@ export default function PlaylistsPage() {
       ) : (
         <div className="space-y-3">
           {playlists.map(pl => (
-            <Card key={pl.id}>
+            <Card key={pl.id} className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50 hover:-translate-y-0.5 transition-all duration-200">
               <CardContent className="p-4 space-y-3">
 
                 {/* En-tête playlist */}
@@ -177,7 +177,7 @@ export default function PlaylistsPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
-                    className="bg-[#4A6FA5] text-white text-sm"
+                    className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white text-sm hover:-translate-y-0.5 transition-all"
                     onClick={() => launchPlaylist(pl)}
                   >
                     <Play className="h-3.5 w-3.5 mr-1.5" />
@@ -246,7 +246,7 @@ export default function PlaylistsPage() {
       )}
 
       {/* ── Créer une playlist ────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardContent className="p-4">
           <p className="font-semibold text-base mb-3">{t('pl_create')}</p>
           <div className="flex gap-2">
@@ -260,7 +260,7 @@ export default function PlaylistsPage() {
             <Button
               onClick={createPlaylist}
               disabled={creating || !newName.trim()}
-              className="bg-[#4A6FA5] h-10 shrink-0"
+              className="bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white h-10 shrink-0 hover:-translate-y-0.5 transition-all"
             >
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             </Button>

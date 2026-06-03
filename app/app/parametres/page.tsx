@@ -119,7 +119,7 @@ export default function ParametresPage() {
       <h1 className="text-2xl font-bold text-[#2C2C2A]">{t('settings_title')}</h1>
 
       {/* ── Langue ────────────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardHeader><CardTitle className="text-lg">{t('settings_lang')}</CardTitle></CardHeader>
         <CardContent>
           <Select value={profil?.langue ?? 'fr'} onValueChange={(v) => saveProfile({ langue: v as Langue })}>
@@ -136,7 +136,7 @@ export default function ParametresPage() {
       </Card>
 
       {/* ── Profil sonore ─────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardHeader><CardTitle className="text-lg">{t('settings_sound')}</CardTitle></CardHeader>
         <CardContent className="space-y-5">
           <div>
@@ -178,7 +178,7 @@ export default function ParametresPage() {
       </Card>
 
       {/* ── Audio 40Hz ────────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardHeader><CardTitle className="text-lg">{t('settings_40hz')}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -202,7 +202,7 @@ export default function ParametresPage() {
       </Card>
 
       {/* ── Abonnement ────────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardHeader><CardTitle className="text-lg">{t('settings_sub')}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {abonnement ? (
@@ -242,7 +242,7 @@ export default function ParametresPage() {
       </Card>
 
       {/* ── Déconnexion ───────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardContent className="p-4">
           <Button
             variant="outline"
@@ -256,7 +256,7 @@ export default function ParametresPage() {
       </Card>
 
       {/* ── RGPD ──────────────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardHeader><CardTitle className="text-lg">{t('settings_data')}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Button variant="outline" className="w-full text-base h-11">

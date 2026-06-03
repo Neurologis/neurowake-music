@@ -54,7 +54,9 @@ export function AppNav({ profil, userEmail }: NavProps) {
               href={item.href}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                isActive ? 'bg-[#F5A623] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
+                isActive
+                  ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white shadow-md'
+                  : 'text-[#2C2C2A] hover:bg-[#EDEAE3] hover:-translate-y-0.5 transition-all duration-200'
               )}
             >
               <Icon className="h-5 w-5" />
@@ -68,7 +70,9 @@ export function AppNav({ profil, userEmail }: NavProps) {
             href="/admin"
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-              pathname.startsWith('/admin') ? 'bg-[#F5A623] text-white' : 'text-[#2C2C2A] hover:bg-[#EDEAE3]'
+              pathname.startsWith('/admin')
+                ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] text-white shadow-md'
+                : 'text-[#2C2C2A] hover:bg-[#EDEAE3] hover:-translate-y-0.5 transition-all duration-200'
             )}
           >
             <Shield className="h-5 w-5" />

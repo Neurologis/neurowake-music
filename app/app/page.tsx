@@ -6,7 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-  Play, Pause, Music, ListMusic, Plus, Trash2, Loader2, SkipForward, Heart,
+  Play, Pause, Music, ListMusic, Plus, Trash2, Loader2, SkipForward, Heart, Star,
 } from 'lucide-react';
 import { useAudioPlayer, type PlaylistType, type GammaMode } from '@/hooks/use-audio-player';
 import { formatDuration, getCurrentPhase } from '@/lib/utils';
@@ -512,37 +512,51 @@ export default function PlayerPage() {
       <div className="flex overflow-x-auto gap-3 pb-1">
         {PLAYLIST_TYPES.map((type) => {
           const isActive = activePlaylist === type;
+
+          const phaseIcon = type === 'matin' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#F5A623]'}`}>
+              <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+          ) : type === 'soins' ? (
+            <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#E85D8A]'}`} />
+          ) : type === 'repas' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#7BA05B]'}`}>
+              <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+            </svg>
+          ) : type === 'apres-midi' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#6B8EC9]'}`}>
+              <path d="M17.5 19H9a7 7 0 116.71-9h1.79a4.5 4.5 0 110 9z"/>
+            </svg>
+          ) : type === 'coucher' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#7B6BB5]'}`}>
+              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+            </svg>
+          ) : (
+            <Star className={`h-8 w-8 fill-current ${isActive ? 'text-white' : 'text-[#F5A623]'}`} />
+          );
+
           return (
             <button
               key={type}
               onClick={() => handlePlay(type)}
               className={`
                 flex flex-col items-center justify-center gap-1 flex-shrink-0
-                h-20 w-24 rounded-2xl border font-semibold transition-all
+                h-20 w-24 rounded-2xl border font-semibold transition-all duration-200
                 ${isActive
-                  ? 'bg-[#F5A623] border-[#F5A623] text-white shadow-md'
-                  : 'bg-white border-[#EDEAE3] text-[#2C2C2A] hover:border-[#F5A623] hover:bg-[#F5A623]/5'
+                  ? 'bg-gradient-to-r from-[#F5A623] to-[#E8A856] border-transparent text-white shadow-xl'
+                  : 'bg-white border-[#EDEAE3] text-[#2C2C2A] shadow-md hover:-translate-y-1 hover:shadow-lg'
                 }
               `}
             >
-              {type === 'soins'
-                ? <Heart className={`h-8 w-8 ${isActive ? 'text-white' : 'text-[#F5A623]'}`} />
-                : type === 'matin'
-                /* eslint-disable-next-line @next/next/no-img-element */
-                ? <img src="/Matin.png" width={48} height={48} alt="Matin" />
-                : type === 'repas'
-                /* eslint-disable-next-line @next/next/no-img-element */
-                ? <img src="/Repas.png" width={48} height={48} alt="Repas" />
-                : <span className="text-3xl leading-none">{t(PHASE_EMOJI_KEYS[type])}</span>
-              }
-              <span className="text-[15px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
+              {phaseIcon}
+              <span className="text-[13px] leading-tight font-semibold">{t(PHASE_TEXT_KEYS[type])}</span>
             </button>
           );
         })}
       </div>
 
       {/* ── Mes playlists ────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -710,7 +724,7 @@ export default function PlayerPage() {
 
       {/* ── Liste des pistes ─────────────────────────────────────────────── */}
       {player.tracks.length > 0 && (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
           <CardContent className="p-3">
             <p className="text-sm font-semibold text-muted-foreground uppercase mb-2 px-1">
               {t(PHASE_FULL_KEYS[activePlaylist])} · {player.tracks.length} {player.tracks.length > 1 ? 'titres' : 'titre'}
@@ -759,7 +773,7 @@ export default function PlayerPage() {
       <div className="space-y-4">
 
         {/* Volume musique */}
-        <Card className="shadow-md rounded-2xl">
+        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
           <CardContent className="p-5 space-y-3">
             <p className="font-bold text-lg flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#F5A623]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
@@ -791,7 +805,7 @@ export default function PlayerPage() {
         </Card>
 
         {/* Message vocal */}
-        <Card className="shadow-md rounded-2xl">
+        <Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
           <CardContent className="p-5 space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -828,7 +842,7 @@ export default function PlayerPage() {
         </Card>
 
         {/* Gamma 40Hz */}
-<Card className="shadow-md rounded-2xl">
+<Card className="bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl border border-white/50">
   <CardContent className="p-5 space-y-4">
     {/* Stimulation 40Hz */}
     <div className="flex items-center justify-between">
